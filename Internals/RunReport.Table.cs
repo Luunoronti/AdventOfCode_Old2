@@ -6,10 +6,19 @@ using System.Text;
 
 partial class RunReport
 {
+    private class DayEntry
+    {
+        public int Day;
+        public int Year;
+        public string Name;
+        public int RowIndex;
+    }
     private class Table
     {
         private List<TableColumn> Columns { get; } = [];
         private Dictionary<string, TableColumn> NamedColumns { get; } = [];
+
+        private List<DayEntry> Entries = [];
 
         public void AddColumn(string name)
         {
@@ -25,6 +34,13 @@ partial class RunReport
                 col.Add(value, Color);
             }
         }
+
+        public void AddDayEntry(int Day, int Year, string Name)
+        {
+            Entries.Add(new DayEntry { Day = Day, Year = Year, Name = Name, RowIndex = Columns[0].Count });
+        }
+
+
 
         private void PrintHeader()
         {
@@ -51,13 +67,48 @@ partial class RunReport
             foreach (var col in Columns)
             {
                 sb.Append("".PadLeft(col.MaximumWidth, '─'));
-                sb.Append(col == Columns.Last() ? "┤" : "┼");
+                sb.Append(col == Columns.Last() ? "┤" : "┴");
             }
             Console.WriteLine(sb.ToString());
         }
         private void PrintRow(int Row)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
+
+            var e = Entries.SingleOrDefault(e => e.RowIndex == Row);
+            if (e != null)
+            {
+                int totalWidth = 0;
+                sb.Append("├");
+                foreach (var col in Columns)
+                {
+                    sb.Append("".PadLeft(col.MaximumWidth, '─'));
+                    sb.Append(col == Columns.Last() ? "┤" : "─");
+                    totalWidth += col.MaximumWidth + 1;
+                }
+                if (Row > 0)
+                    Console.WriteLine(sb.ToString());
+                totalWidth -= 1;
+
+                sb.Clear();
+                sb.Append("│");
+                sb.Append($"{e.Day} / {e.Year} - {e.Name}".PadRight(totalWidth, ' '));
+
+                sb.Append("│");
+                Console.WriteLine(sb.ToString());
+
+
+                sb.Clear();
+                sb.Append("├");
+                foreach (var col in Columns)
+                {
+                    sb.Append("".PadLeft(col.MaximumWidth, '─'));
+                    sb.Append(col == Columns.Last() ? "┤" : "─");
+                }
+                Console.WriteLine(sb.ToString());
+            }
+
+
             sb.Clear();
             sb.Append("│");
             foreach (var col in Columns)

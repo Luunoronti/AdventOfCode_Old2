@@ -44,7 +44,7 @@ partial class RunReport
         else if (part == 2) pc = config.Live.Part2;
 
         if (pc == null) return ResultResult.Good;
-        if(string.IsNullOrEmpty(pc.Expectedresult)) return ResultResult.Unknown;
+        if (string.IsNullOrEmpty(pc.Expectedresult)) return ResultResult.Unknown;
 
         // first of all, check if we can convert value to long
         // if not, we just compare with any known bad values 
@@ -61,19 +61,28 @@ partial class RunReport
     public static void PrintResults()
     {
         Table table = new();
-        table.AddColumn("Year");
-        table.AddColumn("Day");
-        table.AddColumn("Name");
+//        table.AddColumn("Year");
+//        table.AddColumn("Day");
+//        table.AddColumn("Name");
         table.AddColumn("Part");
         table.AddColumn("Result");
         table.AddColumn("Result Remarks");
         table.AddColumn("Time");
 
+        var lastDay = -1;
+        var lastYear = -1;
+
         foreach (var result in results)
         {
-            table.AddValue("Name", result.Name);
-            table.AddValue("Day", result.Day.ToString("D02"));
-            table.AddValue("Year", result.Year.ToString("D02"));
+            if (lastDay != result.Day && lastYear != result.Year)
+            {
+                lastDay = result.Day;
+                lastYear = result.Year;
+                table.AddDayEntry(lastDay, lastYear, result.Name);
+            }
+//            table.AddValue("Name", result.Name);
+//            table.AddValue("Day", result.Day.ToString("D02"));
+//            table.AddValue("Year", result.Year.ToString("D02"));
             table.AddValue("Part", $"{result.Part} - {(result.IsTestRun ? "Test" : "Live")}", result.IsTestRun ? ConsoleColor.Yellow : ConsoleColor.White);
 
             // we need to take config for this result, to see if it's valid or not, and maybe higher or lower than expected

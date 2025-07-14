@@ -22,7 +22,7 @@ partial class RunReport
         {
             get
             {
-                if (_maxWidth == -1) _maxWidth = Values.Max(v => v.Length);
+                if (Values.Count > 0 && _maxWidth == -1) _maxWidth = Values.Max(v => v.Length);
                 _maxWidth = Math.Max(_maxWidth, Header.Length);
                 return _maxWidth + 2;
             }
