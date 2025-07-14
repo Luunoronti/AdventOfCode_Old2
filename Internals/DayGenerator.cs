@@ -111,7 +111,7 @@ static class DayGenerator
                 },
                 Live = new Configuration.PartsConfiguration
                 {
-                    Run = false,
+                    Run = true,
                     Part1 = new Configuration.PartConfiguration
                     {
                         EnableVisualization = false,
