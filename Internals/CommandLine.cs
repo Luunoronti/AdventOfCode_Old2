@@ -1,9 +1,9 @@
-﻿using System.CommandLine;
-
-class CommandLine
+﻿class CommandLine
 {
     public static Option Day { get; } = new Option<int>("--day", "Day");
     public static Option Year { get; } = new Option<int>("--year", "Year");
+    public static Option AllSince { get; } = new Option<int>("--allsince", "AllSince");
+    public static Option NoCode { get; } = new Option<bool>("--nocode", "NoCode");
     public static ParseResult Parse()
     {
         return Parse(Environment.GetCommandLineArgs());
@@ -16,6 +16,8 @@ class CommandLine
         var rootCommand = new RootCommand("Advent of Code");
         rootCommand.Options.Add(Day);
         rootCommand.Options.Add(Year);
+        rootCommand.Options.Add(AllSince);
+        rootCommand.Options.Add(NoCode);
         _result = rootCommand.Parse(args);
         return _result;
     }

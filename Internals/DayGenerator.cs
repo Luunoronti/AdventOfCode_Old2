@@ -2,7 +2,6 @@
 // most of functionality is in Core and Extensions folder
 
 
-using System.CommandLine;
 using System.Net;
 
 static class DayGenerator
@@ -12,6 +11,7 @@ static class DayGenerator
         var cmdLine = CommandLine.Parse();
         var year = cmdLine.GetResult(CommandLine.Year);
         var day = cmdLine.GetResult(CommandLine.Day);
+        var noNewDay = cmdLine.GetResult(CommandLine.NoCode);
 
         if (year is not null && day is not null && !year.Implicit && !day.Implicit)
         {
@@ -20,7 +20,7 @@ static class DayGenerator
 
             if (y >= 2016 && y <= DateTime.Now.Year && d >= 1 && d <= 25)
             {
-                CreateDayIfDoesNotExist(Configuration.RootPath, y, d);
+                CreateDayIfDoesNotExist(y, d, noNewDay?.GetValueOrDefault<bool>() ?? false);
                 Configuration.SaveExecutionConfiguration();
                 return;
             }
@@ -30,69 +30,56 @@ static class DayGenerator
             return;
         }
 
-        // if a day was selected via command line, we do that
-
-        // if none exist, create everything up to today, with first year being 2016
-        //if (Configuration.Execution.Years.Count == 0)
-        //{
-        //    for (int y = 2016; y <= DateTime.Now.Year; ++y)
-        //    {
-        //        for (int d = 1; d <= 25; ++d)
-        //        {
-        //            CreateDayIfDoesNotExist(Configuration.RootPath, y, d);
-        //        }
-        //    }
-        //    Configuration.SaveExecutionConfiguration();
-        //    return;
-        //}
-
         // else just create one that is today (but make sure we are running December)
         if (DateTime.Now.Month == 12)
         {
-            CreateDayIfDoesNotExist(Configuration.RootPath, DateTime.Now.Year, DateTime.Now.Day);
+            CreateDayIfDoesNotExist(DateTime.Now.Year, DateTime.Now.Day);
             Configuration.SaveExecutionConfiguration();
             return;
+        }
+
+        var allSince = cmdLine.GetResult(CommandLine.AllSince);
+        if (allSince is not null && !allSince.Implicit)
+        {
+            int layeryear = DateTime.Now.Month == 12 ? DateTime.Now.Year : DateTime.Now.Year - 1;
+            for (int y = allSince.GetValueOrDefault<int>(); y <= layeryear; ++y)
+            {
+                var lastday = 0;
+                if (layeryear == y && DateTime.Now.Month == 12) lastday = DateTime.Now.Day;
+                for (int d = 1; d <= lastday; ++d)
+                {
+                    CreateDayIfDoesNotExist(y, d);
+                }
+            }
+            Configuration.SaveExecutionConfiguration();
         }
 
         if (Configuration.Execution.Years.Count == 0)
         {
             Console.WriteLine("Please specify target day to work with (using --year and --day options).");
-            //for (int y = 2016; y <= DateTime.Now.Year; ++y)
-            //{
-            //    for (int d = 1; d <= 25; ++d)
-            //    {
-            //        CreateDayIfDoesNotExist(Configuration.RootPath, y, d);
-            //    }
-            //}
-            //Configuration.SaveExecutionConfiguration();
+
             return;
         }
     }
 
 
-    private static void CreateDayIfDoesNotExist(string RootPath, int year, int day)
+    private static void CreateDayIfDoesNotExist(int year, int day, bool noCode = false)
     {
         if (day > 25) return;
 
-        var prefix = $"{RootPath}{year}\\Day{day:D2}\\";
+        var prefix = $"{Configuration.RootPath}{year}\\Day{day:D2}\\";
         Directory.CreateDirectory(prefix);
 
-        if (File.Exists(prefix + $"Day{day:D2}.cs") == false)
+        if (!noCode && File.Exists(prefix + $"Day{day:D2}.cs") == false)
             File.WriteAllText(prefix + $"Day{day:D2}.cs", DayTemplateCode.Replace("{Year}", year.ToString()).Replace("{Day}", day.ToString("D2")));
 
         // also, create test and live input files
-        // and attempt downloading live data
         if (File.Exists(prefix + $"Day{day:D2}.Test.Part1.1.txt") == false) File.WriteAllText(prefix + $"Day{day:D2}.Test.Part1.1.txt", "");
         if (File.Exists(prefix + $"Day{day:D2}.Test.Part2.1.txt") == false) File.WriteAllText(prefix + $"Day{day:D2}.Test.Part2.1.txt", "");
 
-        if (File.Exists(prefix + $"Day{day:D2}.Live.Part1.1.txt") == false)
-        {
-            File.WriteAllText(prefix + $"Day{day:D2}.Live.Part1.1.txt", GetLiveData(RootPath, year, day));
-        }
-        if (File.Exists(prefix + $"Day{day:D2}.Live.Part2.1.txt") == false)
-        {
-            File.WriteAllText(prefix + $"Day{day:D2}.Live.Part2.1.txt", GetLiveData(RootPath, year, day));
-        }
+        // and attempt downloading live data
+        if (File.Exists(prefix + $"Day{day:D2}.Live.Part1.1.txt") == false || File.Exists(prefix + $"Day{day:D2}.Live.Part2.1.txt") == false)
+            UpdateLiveDataForADay(year, day);
 
         if (!Configuration.Execution.Years.Any(y => y.Year == year))
             Configuration.Execution.Years.Add(new Configuration.YearConfiguration() { Year = year });
@@ -139,18 +126,38 @@ static class DayGenerator
                     },
                 }
             });
-
     }
 
+
+    public static void UpdateLiveDataForADay(int year, int day)
+    {
+        if (day > 25) return;
+        var prefix = $"{Configuration.RootPath}{year}\\Day{day:D2}\\";
+        Directory.CreateDirectory(prefix);
+        string liveData = GetLiveData(year, day);
+        File.WriteAllText(prefix + $"Day{day:D2}.Live.Part1.1.txt", liveData);
+        File.WriteAllText(prefix + $"Day{day:D2}.Live.Part2.1.txt", liveData);
+    }
 
     // Note: If we are to run live data, download them from AoC. 
     // Huge thanks to Nick Kusters (https://www.youtube.com/@NKCSS) for pointing out that live data should not be kept on GitHub,
     // and allowing to copy his download code.
-    private static string GetLiveData(string RootPath, int year, int day)
+    private static string GetLiveData(int year, int day)
     {
+        string session = "";
         try
         {
-            string session = File.ReadAllText($"{RootPath}session.txt");
+            session = File.ReadAllText($"{Configuration.RootPath}session.txt");
+        }
+        catch
+        {
+            Console.WriteLine($"Unable to find session file. Please provide a valid session in {Path.GetFullPath(Configuration.RootPath)}session.txt");
+            return "no session file";
+        }
+
+        try
+        {
+            Console.WriteLine($"Downloading live data for year {year}, Day {day}");
             string url = $"https://adventofcode.com/{year}/day/{day}/input";
 
 #pragma warning disable SYSLIB0014 // Type or member is obsolete
@@ -162,7 +169,7 @@ static class DayGenerator
             return contents;
 
         }
-        catch(Exception ex) 
+        catch (Exception ex)
         {
             return $"Unable to obtain live data: {ex}";
         }
@@ -170,23 +177,22 @@ static class DayGenerator
 
 
     private const string DayTemplateCode = @"
-        using StringSpan = System.ReadOnlySpan<char>;
-        namespace AdventOfCode{Year};
+namespace Year_{Year};
 
-        class Day{Day}
-        {
-            // we may want to introduce an input class here
-            public static string Part1(StringSpan Input, Int32 LineWidth, Int32 Count)
-            {
-                long response = 0;
-                return response.ToString();
-            }
-            public static string Part2(StringSpan Input, Int32 LineWidth, Int32 Count)
-            {
-                long response = 0;
-                return response.ToString();
-            }
-        }
-        ";
+class Day{Day}
+{
+    // we may want to introduce an input class here
+    public static string Part1(PartInput Input)
+    {
+        long response = Input.LineWidth;
+        return response.ToString();
+    }
+    public static string Part2(PartInput Input)
+    {
+        long response = Input.LineWidth;
+        return response.ToString();
+    }
+}
+";
 
 }
