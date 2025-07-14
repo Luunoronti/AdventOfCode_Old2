@@ -181,7 +181,6 @@ namespace Year_{Year};
 
 class Day{Day}
 {
-    // we may want to introduce an input class here
     public static string Part1(PartInput Input)
     {
         long response = Input.LineWidth;
