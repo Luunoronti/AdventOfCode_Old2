@@ -13,8 +13,10 @@
           "Test": {
             "Run": true,
             "Part1": {
-              "Expectedresult": "",
-              "KnownErrors": [],
+              "Expectedresult": "4",
+              "KnownErrors": [
+                "5"
+              ],
               "EnableVisualization": false
             },
             "Part2": {

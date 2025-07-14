@@ -3,14 +3,6 @@
 
 
 using System.IO;
-
-class RunReport
-{
-    public void AddResult(string result, TimeSpan time, int Year, int Day, int PartNum, bool RunTests)
-    {
-        Console.WriteLine($"Run executed. Result: {result}, time: {time.FormatUltraPrecise()}");
-    }
-}
 static class DayRunner
 {
     delegate string PartInputHandler(PartInput input);
@@ -21,7 +13,7 @@ static class DayRunner
         public int Day { get; set; }
         private int Part { get; set; }
 
-        private void TimedRun(bool RunTests, RunReport Report, PartInputHandler Handler, PartInput Input)
+        private void TimedRun(bool RunTests, PartInputHandler Handler, PartInput Input)
         {
             // warm up
 #if !DEBUG
@@ -29,9 +21,9 @@ static class DayRunner
 #endif
             var startTime = Stopwatch.GetTimestamp();
             var result = Handler(Input);
-            Report.AddResult(result, Stopwatch.GetElapsedTime(startTime), Year, Day, Part, RunTests);
+            RunReport.AddResult(result, Stopwatch.GetElapsedTime(startTime), Year, Day, Part, RunTests);
         }
-        private void RunInternal(bool RunTests, RunReport Report)
+        private void RunInternal(bool RunTests)
         {
             PartInputHandler Handler = LoadHandler();
 
@@ -58,16 +50,16 @@ static class DayRunner
                     continue;
 
                 // actual run
-                TimedRun(RunTests, Report, Handler, input);
+                TimedRun(RunTests, Handler, input);
             }
         }
 
-        public void Run(bool RunTests, RunReport Report)
+        public void Run(bool RunTests)
         {
             Part = 1;
-            RunInternal(RunTests, Report);
+            RunInternal(RunTests);
             Part = 2;
-            RunInternal(RunTests, Report);  
+            RunInternal(RunTests);  
         }
         private PartInputHandler LoadHandler()
         {
@@ -135,15 +127,13 @@ static class DayRunner
         };
 
         // create report for this day
-        RunReport Report = new();
-
         if (config.Test.Run)
         {
-            runner.Run(true, Report);
+            runner.Run(true);
         }
         if (config.Live.Run)
         {
-            runner.Run(false, Report);
+            runner.Run(false);
         }
         return config.Test.Run || config.Live.Run;
     }
