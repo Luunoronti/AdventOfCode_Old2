@@ -2,6 +2,8 @@
 // most of functionality is in Core and Extensions folder
 
 
+using System.IO;
+
 class RunReport
 {
     public void AddResult(string result, TimeSpan time, int Year, int Day, int PartNum, bool RunTests)
@@ -13,90 +15,96 @@ static class DayRunner
 {
     delegate string PartInputHandler(PartInput input);
 
+    class PartRunner
+    {
+        public int Year { get; set; }
+        public int Day { get; set; }
+        private int Part { get; set; }
+
+        private void TimedRun(bool RunTests, RunReport Report, PartInputHandler Handler, PartInput Input)
+        {
+            // warm up
+#if !DEBUG
+            _ = Handler(Input);
+#endif
+            var startTime = Stopwatch.GetTimestamp();
+            var result = Handler(Input);
+            Report.AddResult(result, Stopwatch.GetElapsedTime(startTime), Year, Day, Part, RunTests);
+        }
+        private void RunInternal(bool RunTests, RunReport Report)
+        {
+            PartInputHandler Handler = LoadHandler();
+
+            var fileSt = $"{Configuration.RootPath}{Year}\\Day{Day:D2}\\Day{Day:D2}.{(RunTests ? "Test" : "Live")}.Part{Part}.";
+            var files = Directory.GetFiles($"{Configuration.RootPath}{Year}\\Day{Day:D2}").ToList();
+            files.Sort();
+
+            foreach (var file in files)
+            {
+                if (!file.StartsWith(fileSt))
+                    continue;
+
+                // create input
+                PartInput input = new()
+                {
+                    FullString = File.ReadAllText(file)
+                };
+                input.Lines = input.FullString.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries);
+                input.Span = input.FullString.AsSpan();
+                input.Count = input.Lines.Length;
+                input.LineWidth = input.Lines == null ? 0 : (input.Lines.Length > 0 ? input.Lines[0].Length : 0);
+
+                if (string.IsNullOrEmpty(input.FullString))
+                    continue;
+
+                // actual run
+                TimedRun(RunTests, Report, Handler, input);
+            }
+        }
+
+        public void Run(bool RunTests, RunReport Report)
+        {
+            Part = 1;
+            RunInternal(RunTests, Report);
+            Part = 2;
+            RunInternal(RunTests, Report);  
+        }
+        private PartInputHandler LoadHandler()
+        {
+            var type = Type.GetType($"Year_{Year}.Day{Day:D2}");
+            if (type == null)
+            {
+                Console.WriteLine($"Unable to find day type Year_{Year}.Day{Day:D2}");
+                return null;
+            }
+            var part = type.GetMethod($"Part{Part}");
+            if (part == null)
+            {
+                Console.WriteLine($"Unable to find Part{Part} method in type {type}");
+                return null;
+            }
+
+            var obj = Activator.CreateInstance(type);
+            if (obj == null)
+            {
+                Console.WriteLine($"Unable to create an instance from type {type}");
+                return null;
+            }
+
+            return (PartInputHandler)part.CreateDelegate(typeof(PartInputHandler), obj);
+        }
+    }
+
+
     public static void Run()
     {
         if (RunDayFromCommandLine())
             return;
-
-        // if program config allows us to run debug days, do that
-        // also, run days specified in command line
-        // note: do we really need debug/release ?
-        // and non debug stuff
     }
 
 
-    private static (PartInputHandler Part1, PartInputHandler Part2) LoadObject(int Year, int Day)
-    {
-        var type = Type.GetType($"Year_{Year}.Day{Day:D2}");
-        if (type == null)
-        {
-            Console.WriteLine($"Unable to find day type Year_{Year}.Day{Day:D2}");
-            return (null, null);
-        }
-        var part1 = type.GetMethod("Part1");
-        if (part1 == null)
-        {
-            Console.WriteLine($"Unable to find Part1 method in type {type}");
-            return (null, null);
-        }
-        var part2 = type.GetMethod("Part1");
-        if (part2 == null)
-        {
-            Console.WriteLine($"Unable to find Part2 method in type {type}");
-            return (null, null);
-        }
-
-        var obj = Activator.CreateInstance(type);
-        if (obj == null)
-        {
-            Console.WriteLine($"Unable to create an instance from type {type}");
-            return (null, null);
-        }
-
-        var handler1 = (PartInputHandler)part1.CreateDelegate(typeof(PartInputHandler), obj);
-        var handler2 = (PartInputHandler)part2.CreateDelegate(typeof(PartInputHandler), obj);
-
-        return (handler1, handler2);
-    }
 
 
-    private static string RunPart(PartInputHandler Handler, RunReport Report, int Year, int Day, int PartNum, bool RunTests)
-    {
-        // we look for files for this run
-        var fileSt = $"{Configuration.RootPath}{Year}\\Day{Day:D2}\\Day{Day:D2}.{(RunTests ? "Test" : "Live")}.Part{PartNum}.";
-        var files = Directory.GetFiles($"{Configuration.RootPath}{Year}\\Day{Day:D2}").ToList();
-        files.Sort();
-
-        foreach (var file in files)
-        {
-            if (!file.StartsWith(fileSt))
-                continue;
-
-            // create input
-            PartInput input = new()
-            {
-                FullString = File.ReadAllText(file)
-            };
-            input.Lines = input.FullString.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries);
-            input.Span = input.FullString.AsSpan();
-            input.Count = input.Lines.Length;
-            input.LineWidth = input.Lines == null ? 0 : (input.Lines.Length > 0 ? input.Lines[0].Length : 0);
-
-            if (string.IsNullOrEmpty(input.FullString))
-                continue;
-
-            // warm up
-#if !DEBUG
-            _ = Handler(input);
-#endif
-            // actual run
-            var startTime = Stopwatch.GetTimestamp();
-            var result = Handler(input);
-            Report.AddResult(result, Stopwatch.GetElapsedTime(startTime), Year, Day, PartNum, RunTests);
-        }
-
-        return null;
-    }
     private static bool RunDay(int Year, int Day)
     {
         // look for config of this day
@@ -118,29 +126,25 @@ static class DayRunner
             return false;
         }
 #endif
-        var (Part1, Part2) = LoadObject(Year, Day);
-        if (Part1 == null || Part2 == null)
+
+        // create part runner
+        PartRunner runner = new()
         {
-            return false;
-        }
+            Year = Year,
+            Day = Day,
+        };
 
         // create report for this day
         RunReport Report = new();
 
-        // run everything, according to config
         if (config.Test.Run)
         {
-            RunPart(Part1, Report, Year, Day, 1, true);
-            RunPart(Part2, Report, Year, Day, 2, true);
+            runner.Run(true, Report);
         }
-
         if (config.Live.Run)
         {
-            RunPart(Part1, Report, Year, Day, 1, false);
-            RunPart(Part2, Report, Year, Day, 2, false);
+            runner.Run(false, Report);
         }
-
-
         return config.Test.Run || config.Live.Run;
     }
 

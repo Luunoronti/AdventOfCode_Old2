@@ -24,7 +24,7 @@
             }
           },
           "Live": {
-            "Run": false,
+            "Run": true,
             "Part1": {
               "Expectedresult": "",
               "KnownErrors": [],
