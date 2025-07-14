@@ -46,8 +46,17 @@ public class Configuration
     {
         try
         {
+            // sort years such that last year is going to be the first
+            // in the file, for simpler editing
+            Execution.Years?.Sort((y1, y2) => y2.Year - y1.Year);
+
+            // and do the same for days, so last day (the one we will probably work on)
+            // is going to be the first in the file
+            Execution.Years?.ForEach(y => y.Days?.Sort((d1, d2) => d2.Day - d1.Day));
+
             Directory.CreateDirectory($"{RootPath}/Configuration/");
             File.WriteAllText($"{RootPath}/Configuration/ExecutionConfig.json", JsonConvert.SerializeObject(Execution, Formatting.Indented));
+            return;
         }
         catch
         {
@@ -72,21 +81,26 @@ public class Configuration
         }
     }
 
+    [JsonObject]
     public class ProgramConfiguration
     {
+        [JsonProperty]
         public bool RunAllInDebug
         {
             get; set;
         }
+        [JsonProperty]
         public bool RunAllInRelease
         {
             get; set;
         }
+        [JsonProperty]
         public VisualizerConfiguration Visualizer
         {
             get; set;
         } = new VisualizerConfiguration();
     }
+    [JsonObject]
     public class VisualizerConfiguration
     {
         public bool AllowMouseCapture
@@ -138,6 +152,7 @@ public class Configuration
             get; set;
         }
     }
+    [JsonObject]
     public struct ConfigColor
     {
         public int r
@@ -154,15 +169,18 @@ public class Configuration
         }
     }
 
+    [JsonObject]
     public class ExecutionConfiguration
     {
-        public List<YearConfiguration> Years { get; set; }
+        public List<YearConfiguration> Years { get; set; } = [];
     }
+    [JsonObject]
     public class YearConfiguration
     {
         public int Year { get; set; }
-        public List<DayConfiguration> Days { get; set; }
+        public List<DayConfiguration> Days { get; set; } = [];
     }
+    [JsonObject]
     public class DayConfiguration
     {
         public bool Run { get; set; }
@@ -175,16 +193,18 @@ public class Configuration
         public PartsConfiguration Test { get; set; }
         public PartsConfiguration Live { get; set; }
     }
+    [JsonObject]
     public class PartsConfiguration
     {
         public bool Run { get; set; }
         public PartConfiguration Part1 { get; set; }
         public PartConfiguration Part2 { get; set; }
     }
+    [JsonObject]
     public class PartConfiguration
     {
         public string Expectedresult { get; set; }
-        public List<string> KnownErrors { get; set; }
+        public List<string> KnownErrors { get; set; } = [];
         public bool EnableVisualization { get; set; }
     }
 

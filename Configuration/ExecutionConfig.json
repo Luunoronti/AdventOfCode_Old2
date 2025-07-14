@@ -1,0 +1,43 @@
+{
+  "Years": [
+    {
+      "Year": 2023,
+      "Days": [
+        {
+          "Run": true,
+          "DebugRun": false,
+          "Name": "Day 12/2023",
+          "Day": 12,
+          "Year": 2023,
+          "EnableVisualization": false,
+          "Test": {
+            "Run": true,
+            "Part1": {
+              "Expectedresult": "",
+              "KnownErrors": [],
+              "EnableVisualization": false
+            },
+            "Part2": {
+              "Expectedresult": "",
+              "KnownErrors": [],
+              "EnableVisualization": false
+            }
+          },
+          "Live": {
+            "Run": false,
+            "Part1": {
+              "Expectedresult": "",
+              "KnownErrors": [],
+              "EnableVisualization": false
+            },
+            "Part2": {
+              "Expectedresult": "",
+              "KnownErrors": [],
+              "EnableVisualization": false
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
