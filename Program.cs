@@ -1,2 +1,9 @@
-﻿// See https://aka.ms/new-console-template for more information
-Console.WriteLine("Hello, World!");
+﻿// attempt to keep the code as clean as possible
+// most of functionality is in Core and Extensions folder
+
+DayGenerator.GenerateDaysIfRequired();
+
+DayRunner.RunDebugDays();
+DayRunner.RunEnabledDays();
+
+Console.WriteLine("Test completed");
