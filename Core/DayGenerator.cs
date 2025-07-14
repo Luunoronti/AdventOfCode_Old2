@@ -5,9 +5,9 @@ static class DayGenerator
 {
     public static void GenerateDaysIfRequired()
     {
-        // load / create days as selected in configuration
-        // if none exist, create everything up to today, with first year being 2016
+        // if a day was selected via command line, we do that
 
+        // if none exist, create everything up to today, with first year being 2016
         if (Configuration.Execution.Years.Count == 0)
         {
             for (int y = 2016; y <= DateTime.Now.Year; ++y)
@@ -19,6 +19,13 @@ static class DayGenerator
             }
             Configuration.SaveExecutionConfiguration();
             return;
+        }
+
+        // else just create one that is today (but make sure we are running December)
+        if (DateTime.Now.Month == 12)
+        {
+            CreateDayIfDoesNotExist(Configuration.RootPath, DateTime.Now.Year, DateTime.Now.Day);
+            Configuration.SaveExecutionConfiguration();
         }
     }
 
