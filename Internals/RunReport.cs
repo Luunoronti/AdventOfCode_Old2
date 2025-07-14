@@ -44,47 +44,29 @@ partial class RunReport
         else if (part == 2) pc = config.Live.Part2;
 
         if (pc == null) return ResultResult.Good;
-
         if(string.IsNullOrEmpty(pc.Expectedresult)) return ResultResult.Unknown;
 
         // first of all, check if we can convert value to long
         // if not, we just compare with any known bad values 
 
         if (actualResult == pc.Expectedresult) return ResultResult.Good;
-
         bool known = pc.KnownErrors.Any(r => r == actualResult);
 
-        if (long.TryParse(actualResult, out var reslong) && long.TryParse(pc.Expectedresult, out var resexp))
-        {
-            if (reslong < resexp)
-            {
-                return known ? ResultResult.TooLowKnown : ResultResult.TooLow;
-            }
-            else
-            {
-                return known ? ResultResult.TooHighKnown : ResultResult.TooHigh;
-            }
-        }
-        else
-        {
-            return known ? ResultResult.KnownBad : ResultResult.UnknownBad;
-        }
+        return long.TryParse(actualResult, out var reslong) && long.TryParse(pc.Expectedresult, out var resexp)
+            ? reslong < resexp
+                ? known ? ResultResult.TooLowKnown : ResultResult.TooLow
+                : known ? ResultResult.TooHighKnown : ResultResult.TooHigh
+            : known ? ResultResult.KnownBad : ResultResult.UnknownBad;
     }
     public static void PrintResults()
     {
-        // simple print:
-        foreach (var result in results)
-        {
-            Console.WriteLine($"{result}");
-        }
-
-        // we shall construct a table now
         Table table = new();
         table.AddColumn("Year");
         table.AddColumn("Day");
         table.AddColumn("Name");
         table.AddColumn("Part");
         table.AddColumn("Result");
+        table.AddColumn("Result Remarks");
         table.AddColumn("Time");
 
         foreach (var result in results)
@@ -97,27 +79,36 @@ partial class RunReport
             // we need to take config for this result, to see if it's valid or not, and maybe higher or lower than expected
             var res = GetResultResult(result.Year, result.Day, result.Part, result.IsTestRun, result.Result);
 
-            table.AddValue("Result", $"{result.Result}{res switch
-            {
-                ResultResult.TooLow => " v",
-                ResultResult.TooLowKnown => " v(m)",
-                ResultResult.TooHigh => " ^",
-                ResultResult.TooHighKnown => " ^(m)",
-                ResultResult.KnownBad => " (m)",
-                _ => "",
-            }}",
+            table.AddValue("Result", $"{result.Result}",
                 res switch
                 {
                     ResultResult.Good => ConsoleColor.Green,
-                    ResultResult.TooLow => ConsoleColor.Red,
-                    ResultResult.TooLowKnown => ConsoleColor.Magenta,
-                    ResultResult.TooHigh => ConsoleColor.Red,
-                    ResultResult.TooHighKnown => ConsoleColor.Magenta,
-                    ResultResult.UnknownBad => ConsoleColor.Red,
-                    ResultResult.KnownBad => ConsoleColor.Magenta,
                     ResultResult.Unknown => ConsoleColor.Cyan,
-                    _ => ConsoleColor.White,
+                    _ => ConsoleColor.Red,
                 });
+
+            table.AddValue("Result Remarks", $"{res switch
+            {
+                ResultResult.TooLow => "too low",
+                ResultResult.TooLowKnown => "known, too low",
+                ResultResult.TooHigh => "too high",
+                ResultResult.TooHighKnown => "known, too high",
+                ResultResult.KnownBad => "known",
+                ResultResult.UnknownBad => "not known",
+                _ => "",
+            }}",
+               res switch
+               {
+                   ResultResult.Good => ConsoleColor.Green,
+                   ResultResult.TooLow => ConsoleColor.Red,
+                   ResultResult.TooLowKnown => ConsoleColor.Magenta,
+                   ResultResult.TooHigh => ConsoleColor.Red,
+                   ResultResult.TooHighKnown => ConsoleColor.Magenta,
+                   ResultResult.UnknownBad => ConsoleColor.Red,
+                   ResultResult.KnownBad => ConsoleColor.Magenta,
+                   ResultResult.Unknown => ConsoleColor.Cyan,
+                   _ => ConsoleColor.White,
+               });
 
             table.AddValue("Time", result.Time.FormatUltraPrecise(), ConsoleColor.Red);
         }
@@ -125,17 +116,4 @@ partial class RunReport
         table.Format();
         table.Print();
     }
-    //↑
-    //⇧
-    //⬆
-    //▲
-    //▴
-
-
-    //↓
-    //⇩
-    //⬇
-    //▼
-    //▾
-
 }
