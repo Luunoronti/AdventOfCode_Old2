@@ -1,6 +1,4 @@
-using System.Linq;
-
-namespace Year_2016;
+namespace Year2016;
 
 class Day01
 {
@@ -9,7 +7,13 @@ class Day01
         Traveller traveller = new(CardinalDirection.North) { };
         foreach (var part in Input.FullString.SplitTrim(','))
         {
-            traveller.CardinalDirection = part[0] == 'R' ? traveller.CardinalDirection.Right : part[0] == 'L' ? traveller.CardinalDirection.Left : traveller.CardinalDirection;
+            traveller.CardinalDirection = part[0] switch 
+            {
+                'R' => traveller.CardinalDirection.Right,
+                'L' => traveller.CardinalDirection.Left,
+                _ => traveller.CardinalDirection,
+            };
+
             if (int.TryParse(part[1..], out var steps))
                 traveller.Walk(steps, null);
         }
@@ -20,12 +24,17 @@ class Day01
         Traveller traveller = new(CardinalDirection.North) { StoreVisitedLocations = true };
         foreach (var part in Input.FullString.SplitTrim(','))
         {
-            traveller.CardinalDirection = part[0] == 'R' ? traveller.CardinalDirection.Right : part[0] == 'L' ? traveller.CardinalDirection.Left : traveller.CardinalDirection;
-            if (!int.TryParse(part[1..], out var steps) ||
-                traveller.Walk(steps, null, (t) =>
+            traveller.CardinalDirection = part[0] switch
             {
-                return t.VisitedLocations[t.Location] <= 1;
-            }) == WalkResult.Cancelled)
+                'R' => traveller.CardinalDirection.Right,
+                'L' => traveller.CardinalDirection.Left,
+                _ => traveller.CardinalDirection,
+            };
+
+            if (!int.TryParse(part[1..], out var steps))
+                break;
+
+            if (traveller.Walk(steps, null, (t) => t.GetVisitedCount(t.Location) <= 1) == WalkResult.Cancelled)
                 break;
         }
 

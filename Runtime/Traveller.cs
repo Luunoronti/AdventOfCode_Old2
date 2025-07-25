@@ -26,6 +26,7 @@ public class Traveller
 
     public Dictionary<Location, int> VisitedLocations { get; } = [];
 
+    public int GetVisitedCount(Location location) => VisitedLocations.TryGetValue(location, out var count) ? count : 0;
 
     /// <summary>
     /// Walk n steps in the direction specified in CardinalDirection.
@@ -57,7 +58,7 @@ public class Traveller
             }
 
             Location += dir;
-            
+
             if (StoreVisitedLocations)
                 VisitedLocations[Location] = VisitedLocations.TryGetValue(Location, out var visited) ? visited + 1 : 1;
 

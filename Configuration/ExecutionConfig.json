@@ -17,6 +17,12 @@
         {
           "Run": true,
           "DebugRun": true,
+          "Day": 2,
+          "EnableVisualization": false
+        },
+        {
+          "Run": true,
+          "DebugRun": true,
           "Day": 1,
           "EnableVisualization": false
         }

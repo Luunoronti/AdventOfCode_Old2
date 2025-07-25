@@ -12,7 +12,7 @@
 *.env
 
 session.txt
-Day*.Live.*.txt
+*live*.txt
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

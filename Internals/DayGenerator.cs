@@ -3,6 +3,7 @@
 
 
 using System.Net;
+using System.Text.RegularExpressions;
 
 static class DayGenerator
 {
@@ -75,8 +76,19 @@ static class DayGenerator
 
         // create configuration if there is none
         if (File.Exists(prefix + $"config.yaml") == false)
-            File.WriteAllText(prefix + $"config.yaml", DayTemplateConfig.Replace("{Year}", year.ToString()).Replace("{Day}", day.ToString("D2")));
+        {
+            // download the page
+            var page = GetMainPage(year, day);
 
+            // parse for title
+            var title = ExtractTitle(page);
+
+            File.WriteAllText(prefix + $"config.yaml", DayTemplateConfig
+                .Replace("{Year}", year.ToString())
+                .Replace("{Day}", day.ToString("D2"))
+                .Replace("{Title}", title)
+                );
+        }
         // and attempt downloading live data
         if (File.Exists(prefix + $"live.txt") == false || File.Exists(prefix + $"live.txt") == false)
             UpdateLiveDataForADay(year, day);
@@ -94,6 +106,11 @@ static class DayGenerator
             });
     }
 
+    public static string ExtractTitle(string html)
+    {
+        var match = Regex.Match(html, @"<h2>--- Day \d+: (.*?) ---</h2>");
+        return match.Success ? match.Groups[1].Value : "Title not found";
+    }
 
     public static void UpdateLiveDataForADay(int year, int day)
     {
@@ -139,10 +156,28 @@ static class DayGenerator
             return $"Unable to obtain live data: {ex}";
         }
     }
+    private static string GetMainPage(int year, int day)
+    {
+        try
+        {
+            Console.WriteLine($"Downloading main page for year {year}, Day {day}");
+            string url = $"https://adventofcode.com/{year}/day/{day}";
+
+#pragma warning disable SYSLIB0014 // Type or member is obsolete
+            var wc = new WebClient();
+#pragma warning restore SYSLIB0014 // Type or member is obsolete
+            string contents = wc.DownloadString(url);
+            return contents;
+        }
+        catch (Exception ex)
+        {
+            return $"Unable to obtain main page: {ex}";
+        }
+    }
 
 
     private const string DayTemplateCode = @"
-namespace Year_{Year};
+namespace Year{Year};
 
 class Day{Day}
 {
@@ -160,7 +195,7 @@ class Day{Day}
 ";
 
     private const string DayTemplateConfig = @"
-name: PartName
+name: {Title}
 year: {Year}
 day: {Day}
 run: true

@@ -53,6 +53,9 @@ static class DayRunner
                 PartConfig = test;
                 PartInputHandler Handler = LoadHandler();
 
+                if (Handler == null)
+                    continue;
+
                 // attempt to load source as a file
                 // if it fails, attempt to load in place
                 if (!LoadSourceFromFile(test.Source, out var output))
@@ -64,7 +67,7 @@ static class DayRunner
                 {
                     FullString = output
                 };
-                input.Lines = input.FullString.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+                input.Lines = input.FullString.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries);
                 input.Span = input.FullString.AsSpan();
                 input.Count = input.Lines.Length;
                 input.LineWidth = input.Lines == null ? 0 : (input.Lines.Length > 0 ? input.Lines[0].Length : 0);
@@ -82,7 +85,7 @@ static class DayRunner
             int Year = Config.Year;
             int Day = Config.Day;
             int Part = PartConfig.Part;
-            var type = Type.GetType($"Year_{Year}.Day{Day:D2}");
+            var type = Type.GetType($"Year{Year}.Day{Day:D2}");
             if (type == null)
             {
                 Console.WriteLine($"Unable to find day type Year_{Year}.Day{Day:D2}");

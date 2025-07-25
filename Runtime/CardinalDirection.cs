@@ -9,6 +9,7 @@ public struct CardinalDirection
     public static CardinalDirection South = new() { _dirflag = 2 };
     public static CardinalDirection West = new() { _dirflag = 3 };
 
+
     public CardinalDirection()
     {
     }
