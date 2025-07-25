@@ -1,10 +1,12 @@
+using System.Linq;
+
 namespace Year_2016;
 
 class Day01
 {
     public string Part1(PartInput Input)
     {
-        Traveller traveller = new(CardinalDirection.North);
+        Traveller traveller = new(CardinalDirection.North) { };
         foreach (var part in Input.FullString.SplitTrim(','))
         {
             traveller.CardinalDirection = part[0] == 'R' ? traveller.CardinalDirection.Right : part[0] == 'L' ? traveller.CardinalDirection.Left : traveller.CardinalDirection;
@@ -15,18 +17,14 @@ class Day01
     }
     public string Part2(PartInput Input)
     {
-        Traveller traveller = new(CardinalDirection.North);
-        List<Location> visitedLocations = [];
+        Traveller traveller = new(CardinalDirection.North) { StoreVisitedLocations = true };
         foreach (var part in Input.FullString.SplitTrim(','))
         {
             traveller.CardinalDirection = part[0] == 'R' ? traveller.CardinalDirection.Right : part[0] == 'L' ? traveller.CardinalDirection.Left : traveller.CardinalDirection;
             if (!int.TryParse(part[1..], out var steps) ||
-                traveller.Walk(steps, (t) =>
+                traveller.Walk(steps, null, (t) =>
             {
-                if (visitedLocations.Contains(t.Location))
-                    return StepPred.Cancel;
-                visitedLocations.Add(t.Location);
-                return StepPred.Continue;
+                return t.VisitedLocations[t.Location] <= 1;
             }) == WalkResult.Cancelled)
                 break;
         }

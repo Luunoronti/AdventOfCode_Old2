@@ -13,6 +13,8 @@ public class Traveller
 
         Location = StartLocation;
         CardinalDirection = StartDirection;
+
+        VisitedLocations[Location] = 1;
     }
     public Location Location { get; set; }
     public CardinalDirection CardinalDirection { get; set; }
@@ -20,6 +22,9 @@ public class Traveller
     public Location StartLocation { get; set; }
     public CardinalDirection StartDirection { get; set; }
 
+    public bool StoreVisitedLocations { get; set; }
+
+    public Dictionary<Location, int> VisitedLocations { get; } = [];
 
 
     /// <summary>
@@ -31,7 +36,7 @@ public class Traveller
     public WalkResult Walk(int steps = 1, Func<Traveller, StepPred> CanStepPred = null, Func<Traveller, bool> TookStepPred = null)
     {
         // no callbacks, just take n steps in a given direction
-        if (CanStepPred == null && TookStepPred == null)
+        if (!StoreVisitedLocations && CanStepPred == null && TookStepPred == null)
         {
             Location += CardinalDirection.Direction * steps;
             return WalkResult.Completed;
@@ -52,6 +57,9 @@ public class Traveller
             }
 
             Location += dir;
+            
+            if (StoreVisitedLocations)
+                VisitedLocations[Location] = VisitedLocations.TryGetValue(Location, out var visited) ? visited + 1 : 1;
 
             if (!(TookStepPred?.Invoke(this) ?? true))
                 return WalkResult.Cancelled;
