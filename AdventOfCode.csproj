@@ -2,9 +2,10 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
+		<TargetFramework>net7.0-windows</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>disable</Nullable>
+        <LangVersion>preview</LangVersion>
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<PublishAot>True</PublishAot>
 		<RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>

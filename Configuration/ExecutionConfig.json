@@ -40,6 +40,50 @@
           }
         }
       ]
+    },
+    {
+      "Year": 2016,
+      "Days": [
+        {
+          "Run": true,
+          "DebugRun": true,
+          "Name": "No Time for a Taxicab",
+          "Day": 1,
+          "Year": 2016,
+          "EnableVisualization": false,
+          "Test": {
+            "Run": true,
+            "Part1": {
+              "Expectedresult": "",
+              "KnownErrors": [],
+              "EnableVisualization": false
+            },
+            "Part2": {
+              "Expectedresult": "",
+              "KnownErrors": [],
+              "EnableVisualization": false
+            }
+          },
+          "Live": {
+            "Run": true,
+            "Part1": {
+              "Expectedresult": "161",
+              "KnownErrors": [],
+              "EnableVisualization": false
+            },
+            "Part2": {
+              "Expectedresult": "110",
+              "KnownErrors": [
+                "75",
+                "76",
+                "77",
+                "4"
+              ],
+              "EnableVisualization": false
+            }
+          }
+        }
+      ]
     }
   ]
 }

@@ -44,12 +44,12 @@ partial class RunReport
         else if (part == 2) pc = config.Live.Part2;
 
         if (pc == null) return ResultResult.Good;
-        if (string.IsNullOrEmpty(pc.Expectedresult)) return ResultResult.Unknown;
+        if (actualResult == pc.Expectedresult) return ResultResult.Good;
+        if (string.IsNullOrEmpty(pc.Expectedresult) && pc.KnownErrors.Count == 0) return ResultResult.Unknown;
 
         // first of all, check if we can convert value to long
         // if not, we just compare with any known bad values 
 
-        if (actualResult == pc.Expectedresult) return ResultResult.Good;
         bool known = pc.KnownErrors.Any(r => r == actualResult);
 
         return long.TryParse(actualResult, out var reslong) && long.TryParse(pc.Expectedresult, out var resexp)

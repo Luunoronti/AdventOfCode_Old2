@@ -90,7 +90,7 @@ static class DayGenerator
                 Day = day,
                 Year = year,
                 EnableVisualization = false,
-                DebugRun = false,
+                DebugRun = true,
                 Run = true,
                 Name = $"Day {day}/{year}",
                 Test = new Configuration.PartsConfiguration
@@ -181,12 +181,12 @@ namespace Year_{Year};
 
 class Day{Day}
 {
-    public static string Part1(PartInput Input)
+    public string Part1(PartInput Input)
     {
         long response = Input.LineWidth;
         return response.ToString();
     }
-    public static string Part2(PartInput Input)
+    public string Part2(PartInput Input)
     {
         long response = Input.LineWidth;
         return response.ToString();

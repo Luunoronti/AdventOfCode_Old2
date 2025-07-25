@@ -41,7 +41,7 @@ static class DayRunner
                 {
                     FullString = File.ReadAllText(file)
                 };
-                input.Lines = input.FullString.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries);
+                input.Lines = input.FullString.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
                 input.Span = input.FullString.AsSpan();
                 input.Count = input.Lines.Length;
                 input.LineWidth = input.Lines == null ? 0 : (input.Lines.Length > 0 ? input.Lines[0].Length : 0);
