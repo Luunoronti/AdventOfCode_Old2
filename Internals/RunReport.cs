@@ -1,20 +1,20 @@
 ﻿// attempt to keep the code as clean as possible
 // most of functionality is in Core and Extensions folder
 
-
-using System;
-using System.IO;
-using System.Reflection.Metadata;
-using System.Xml.Linq;
-using static System.Net.Mime.MediaTypeNames;
+using static DayRunner;
 
 partial class RunReport
 {
     private static List<SingleRunReport> results = [];
 
-    public static void AddResult(string result, TimeSpan time, int Year, int Day, int PartNum, bool RunTests)
+    public static void AddResult(string result, TimeSpan time, RunLocalConfiguration localConfig, RunLocalConfiguration.PartCfg part, bool RunTests)
     {
-        results.Add(new SingleRunReport(result, time, Year, Day, PartNum, RunTests));
+        results.Add(new SingleRunReport(time, localConfig.Year, localConfig.Day, part.Part, RunTests)
+        {
+            Name = localConfig.Name,
+            Result = GetResultResult(part, RunTests, result),
+            ResultValue = result,
+        });
     }
 
     enum ResultResult
@@ -28,31 +28,16 @@ partial class RunReport
         UnknownBad,
         KnownBad,
     }
-    private static ResultResult GetResultResult(int Year, int Day, int part, bool isTest, string actualResult)
+
+    private static ResultResult GetResultResult(RunLocalConfiguration.PartCfg part, bool isTest, string actualResult)
     {
-        var config = Configuration.Execution?.Years?.SingleOrDefault(y => y.Year == Year)?.Days?.SingleOrDefault(d => d.Day == Day);
-        if (config is null)
-        {
-            return ResultResult.Good;
-        }
+        if (part == null) return ResultResult.Good;
+        if (actualResult == part.Expected) return ResultResult.Good;
+        if (string.IsNullOrEmpty(part.Expected) && part.KnownErrors.Count == 0) return ResultResult.Unknown;
 
-        Configuration.PartConfiguration pc = null;
+        bool known = part.KnownErrors.Any(r => r == actualResult);
 
-        if (isTest && part == 1) pc = config.Test.Part1;
-        else if (isTest && part == 2) pc = config.Test.Part2;
-        else if (part == 1) pc = config.Live.Part1;
-        else if (part == 2) pc = config.Live.Part2;
-
-        if (pc == null) return ResultResult.Good;
-        if (actualResult == pc.Expectedresult) return ResultResult.Good;
-        if (string.IsNullOrEmpty(pc.Expectedresult) && pc.KnownErrors.Count == 0) return ResultResult.Unknown;
-
-        // first of all, check if we can convert value to long
-        // if not, we just compare with any known bad values 
-
-        bool known = pc.KnownErrors.Any(r => r == actualResult);
-
-        return long.TryParse(actualResult, out var reslong) && long.TryParse(pc.Expectedresult, out var resexp)
+        return long.TryParse(actualResult, out var reslong) && long.TryParse(part.Expected, out var resexp)
             ? reslong < resexp
                 ? known ? ResultResult.TooLowKnown : ResultResult.TooLow
                 : known ? ResultResult.TooHighKnown : ResultResult.TooHigh
@@ -61,9 +46,6 @@ partial class RunReport
     public static void PrintResults()
     {
         Table table = new();
-//        table.AddColumn("Year");
-//        table.AddColumn("Day");
-//        table.AddColumn("Name");
         table.AddColumn("Part");
         table.AddColumn("Result");
         table.AddColumn("Result Remarks");
@@ -80,23 +62,17 @@ partial class RunReport
                 lastYear = result.Year;
                 table.AddDayEntry(lastDay, lastYear, result.Name);
             }
-//            table.AddValue("Name", result.Name);
-//            table.AddValue("Day", result.Day.ToString("D02"));
-//            table.AddValue("Year", result.Year.ToString("D02"));
             table.AddValue("Part", $"{result.Part} - {(result.IsTestRun ? "Test" : "Live")}", result.IsTestRun ? ConsoleColor.Yellow : ConsoleColor.White);
 
-            // we need to take config for this result, to see if it's valid or not, and maybe higher or lower than expected
-            var res = GetResultResult(result.Year, result.Day, result.Part, result.IsTestRun, result.Result);
-
-            table.AddValue("Result", $"{result.Result}",
-                res switch
+            table.AddValue("Result", $"{result.ResultValue}",
+                result.Result switch
                 {
                     ResultResult.Good => ConsoleColor.Green,
                     ResultResult.Unknown => ConsoleColor.Cyan,
                     _ => ConsoleColor.Red,
                 });
 
-            table.AddValue("Result Remarks", $"{res switch
+            table.AddValue("Result Remarks", $"{result.Result switch
             {
                 ResultResult.TooLow => "too low",
                 ResultResult.TooLowKnown => "known, too low",
@@ -106,7 +82,7 @@ partial class RunReport
                 ResultResult.UnknownBad => "not known",
                 _ => "",
             }}",
-               res switch
+               result.Result switch
                {
                    ResultResult.Good => ConsoleColor.Green,
                    ResultResult.TooLow => ConsoleColor.Red,

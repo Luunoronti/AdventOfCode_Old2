@@ -3,16 +3,30 @@
 
 
 using System.IO;
+using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet.Serialization;
+
 static class DayRunner
 {
     delegate string PartInputHandler(PartInput input);
 
     class PartRunner
     {
-        public int Year { get; set; }
-        public int Day { get; set; }
-        private int Part { get; set; }
+        public RunLocalConfiguration Config { get; internal set; }
+        public RunLocalConfiguration.PartCfg PartConfig { get; internal set; }
 
+        private bool LoadSourceFromFile(string file, out string output)
+        {
+            try
+            {
+                var path = $"{Configuration.RootPath}{Config.Year}\\Day{Config.Day:D2}\\{file}";
+                output = File.ReadAllText(path);
+                return true;
+            }
+            catch { }
+            output = "";
+            return false;
+        }
         private void TimedRun(bool RunTests, PartInputHandler Handler, PartInput Input)
         {
             // warm up
@@ -21,48 +35,53 @@ static class DayRunner
 #endif
             var startTime = Stopwatch.GetTimestamp();
             var result = Handler(Input);
-            RunReport.AddResult(result, Stopwatch.GetElapsedTime(startTime), Year, Day, Part, RunTests);
+            RunReport.AddResult(result, Stopwatch.GetElapsedTime(startTime), Config, PartConfig, RunTests);
         }
         private void RunInternal(bool RunTests)
         {
-            PartInputHandler Handler = LoadHandler();
 
-            var fileSt = $"{Configuration.RootPath}{Year}\\Day{Day:D2}\\Day{Day:D2}.{(RunTests ? "Test" : "Live")}.Part{Part}.";
-            var files = Directory.GetFiles($"{Configuration.RootPath}{Year}\\Day{Day:D2}").ToList();
-            files.Sort();
-
-            foreach (var file in files)
+            var tests = RunTests ? Config.Tests : Config.Live;
+            foreach (var test in tests)
             {
-                if (!file.StartsWith(fileSt))
+#if DEBUG
+                if (!test.DebugRun)
+                    continue;
+#else
+                if (!test.Run)
+                    continue;
+#endif
+                PartConfig = test;
+                PartInputHandler Handler = LoadHandler();
+
+                // attempt to load source as a file
+                // if it fails, attempt to load in place
+                if (!LoadSourceFromFile(test.Source, out var output))
+                    output = test.Source;
+                if (string.IsNullOrEmpty(output))
                     continue;
 
-                // create input
                 PartInput input = new()
                 {
-                    FullString = File.ReadAllText(file)
+                    FullString = output
                 };
                 input.Lines = input.FullString.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
                 input.Span = input.FullString.AsSpan();
                 input.Count = input.Lines.Length;
                 input.LineWidth = input.Lines == null ? 0 : (input.Lines.Length > 0 ? input.Lines[0].Length : 0);
 
-                if (string.IsNullOrEmpty(input.FullString))
-                    continue;
-
-                // actual run
                 TimedRun(RunTests, Handler, input);
             }
         }
 
         public void Run(bool RunTests)
         {
-            Part = 1;
             RunInternal(RunTests);
-            Part = 2;
-            RunInternal(RunTests);  
         }
         private PartInputHandler LoadHandler()
         {
+            int Year = Config.Year;
+            int Day = Config.Day;
+            int Part = PartConfig.Part;
             var type = Type.GetType($"Year_{Year}.Day{Day:D2}");
             if (type == null)
             {
@@ -95,7 +114,9 @@ static class DayRunner
     }
 
 
-
+    private static IDeserializer YamlDeserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
 
     private static bool RunDay(int Year, int Day)
     {
@@ -119,23 +140,24 @@ static class DayRunner
         }
 #endif
 
+        // load local configuration from yaml file
+        var file = $"{Configuration.RootPath}{Year}\\Day{Day:D2}\\config.yaml";
+        var localConfig = YamlDeserializer.Deserialize<RunLocalConfiguration>(File.ReadAllText(file));
+        localConfig?.OnAfterDeserialize();
+
         // create part runner
         PartRunner runner = new()
         {
-            Year = Year,
-            Day = Day,
+            Config = localConfig
         };
 
         // create report for this day
-        if (config.Test.Run)
-        {
+        if (localConfig.RunTests)
             runner.Run(true);
-        }
-        if (config.Live.Run)
-        {
+        if (localConfig.RunLive)
             runner.Run(false);
-        }
-        return config.Test.Run || config.Live.Run;
+
+        return localConfig.RunTests || localConfig.RunLive;
     }
 
     private static bool RunDayFromCommandLine()
@@ -166,11 +188,38 @@ static class DayRunner
         return false;
     }
 
+    internal class RunLocalConfiguration
+    {
+        internal void OnAfterDeserialize()
+        {
+            Tests ??= [];
+            Live ??= [];
 
-    private static void RunDebugDays()
-    {
-    }
-    private static void RunReleaseDays()
-    {
+            foreach (var t in Tests)
+                t.KnownErrors ??= [];
+            foreach (var l in Live)
+                l.KnownErrors ??= [];
+        }
+        internal class PartCfg
+        {
+            public int Part { get; set; }
+            public bool Run { get; set; }
+            public bool DebugRun { get; set; }
+            public bool Visualization { get; set; }
+            public string Expected { get; set; } = "";
+            public List<string> KnownErrors { get; set; } = [];
+            public string Source { get; set; } = "";
+        }
+        public string Name { get; set; } = "";
+        public int Year { get; set; }
+        public int Day { get; set; }
+        public bool Run { get; set; }
+        public bool DebugRun { get; set; }
+        public bool Visualization { get; set; }
+        public bool RunLive { get; set; }
+        public bool RunTests { get; set; }
+
+        public List<PartCfg> Tests { get; set; } = [];
+        public List<PartCfg> Live { get; set; } = [];
     }
 }

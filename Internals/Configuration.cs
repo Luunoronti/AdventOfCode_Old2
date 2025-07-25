@@ -184,26 +184,7 @@ public class Configuration
     {
         public bool Run { get; set; }
         public bool DebugRun { get; set; }
-        public string Name { get; set; }
         public int Day { get; set; }
-        public int Year { get; set; }
-        public bool EnableVisualization { get; set; }
-
-        public PartsConfiguration Test { get; set; }
-        public PartsConfiguration Live { get; set; }
-    }
-    [JsonObject]
-    public class PartsConfiguration
-    {
-        public bool Run { get; set; }
-        public PartConfiguration Part1 { get; set; }
-        public PartConfiguration Part2 { get; set; }
-    }
-    [JsonObject]
-    public class PartConfiguration
-    {
-        public string Expectedresult { get; set; }
-        public List<string> KnownErrors { get; set; } = [];
         public bool EnableVisualization { get; set; }
     }
 

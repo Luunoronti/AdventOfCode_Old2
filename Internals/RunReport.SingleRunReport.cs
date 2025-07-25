@@ -5,30 +5,24 @@ partial class RunReport
 {
     private class SingleRunReport
     {
-        public SingleRunReport(string result, TimeSpan time, int year, int day, int part, bool isTestRun)
+        public SingleRunReport(TimeSpan time, int year, int day, int part, bool isTestRun)
         {
-            Result = result;
             Time = time;
             Year = year;
             Day = day;
             Part = part;
             IsTestRun = isTestRun;
-
-            var config = Configuration.Execution?.Years?.SingleOrDefault(y => y.Year == Year)?.Days?.SingleOrDefault(d => d.Day == Day);
-            if (config is not null)
-            {
-                Name = config.Name;
-            }
         }
 
-        public string Result { get; }
+        public ResultResult Result { get; set; }
         public TimeSpan Time { get; }
         public int Year { get; }
         public int Day { get; }
         public int Part { get; }
         public bool IsTestRun { get; }
 
-        public string Name { get; }
+        public string Name { get; set; }
+        public string ResultValue { get; internal set; }
 
         public override string ToString()
         {

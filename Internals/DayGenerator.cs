@@ -73,12 +73,12 @@ static class DayGenerator
         if (!noCode && File.Exists(prefix + $"Day{day:D2}.cs") == false)
             File.WriteAllText(prefix + $"Day{day:D2}.cs", DayTemplateCode.Replace("{Year}", year.ToString()).Replace("{Day}", day.ToString("D2")));
 
-        // also, create test and live input files
-        if (File.Exists(prefix + $"Day{day:D2}.Test.Part1.1.txt") == false) File.WriteAllText(prefix + $"Day{day:D2}.Test.Part1.1.txt", "");
-        if (File.Exists(prefix + $"Day{day:D2}.Test.Part2.1.txt") == false) File.WriteAllText(prefix + $"Day{day:D2}.Test.Part2.1.txt", "");
+        // create configuration if there is none
+        if (File.Exists(prefix + $"config.yaml") == false)
+            File.WriteAllText(prefix + $"config.yaml", DayTemplateConfig.Replace("{Year}", year.ToString()).Replace("{Day}", day.ToString("D2")));
 
         // and attempt downloading live data
-        if (File.Exists(prefix + $"Day{day:D2}.Live.Part1.1.txt") == false || File.Exists(prefix + $"Day{day:D2}.Live.Part2.1.txt") == false)
+        if (File.Exists(prefix + $"live.txt") == false || File.Exists(prefix + $"live.txt") == false)
             UpdateLiveDataForADay(year, day);
 
         if (!Configuration.Execution.Years.Any(y => y.Year == year))
@@ -88,43 +88,9 @@ static class DayGenerator
             Configuration.Execution.Years.Single(y => y.Year == year).Days.Add(new Configuration.DayConfiguration
             {
                 Day = day,
-                Year = year,
                 EnableVisualization = false,
                 DebugRun = true,
                 Run = true,
-                Name = $"Day {day}/{year}",
-                Test = new Configuration.PartsConfiguration
-                {
-                    Run = true,
-                    Part1 = new Configuration.PartConfiguration
-                    {
-                        EnableVisualization = false,
-                        Expectedresult = "",
-                        KnownErrors = []
-                    },
-                    Part2 = new Configuration.PartConfiguration
-                    {
-                        EnableVisualization = false,
-                        Expectedresult = "",
-                        KnownErrors = []
-                    },
-                },
-                Live = new Configuration.PartsConfiguration
-                {
-                    Run = true,
-                    Part1 = new Configuration.PartConfiguration
-                    {
-                        EnableVisualization = false,
-                        Expectedresult = "",
-                        KnownErrors = []
-                    },
-                    Part2 = new Configuration.PartConfiguration
-                    {
-                        EnableVisualization = false,
-                        Expectedresult = "",
-                        KnownErrors = []
-                    },
-                }
             });
     }
 
@@ -135,8 +101,7 @@ static class DayGenerator
         var prefix = $"{Configuration.RootPath}{year}\\Day{day:D2}\\";
         Directory.CreateDirectory(prefix);
         string liveData = GetLiveData(year, day);
-        File.WriteAllText(prefix + $"Day{day:D2}.Live.Part1.1.txt", liveData);
-        File.WriteAllText(prefix + $"Day{day:D2}.Live.Part2.1.txt", liveData);
+        File.WriteAllText(prefix + $"live.txt", liveData);
     }
 
     // Note: If we are to run live data, download them from AoC. 
@@ -192,6 +157,52 @@ class Day{Day}
         return response.ToString();
     }
 }
+";
+
+    private const string DayTemplateConfig = @"
+name: PartName
+year: {Year}
+day: {Day}
+run: true
+debugRun: true
+visualization: false
+runLive: true
+runTests: true
+
+tests:
+  - part: 1
+    run: true
+    debugRun: true
+    expected:
+    knownErrors:
+    visualization: false
+    source: 
+    
+  - part: 2
+    run: true
+    debugRun: true
+    expected:
+    knownErrors:
+    visualization: false
+    source: 
+    
+live:
+  - part: 1
+    run: true
+    debugRun: true
+    expected:
+    knownErrors:
+    visualization: false
+    source: live.txt
+
+  - part: 2
+    run: true
+    debugRun: true
+    expected:
+    knownErrors:
+    
+    visualization: false
+    source: live.txt
 ";
 
 }
