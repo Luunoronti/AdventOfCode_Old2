@@ -2,6 +2,17 @@
 
 Welcome to the AdventOfCode project! This guide will help you get started with adding a new puzzle-solving day.
 
+## Quick Start
+
+**You do not need to manually create folders or files for a new day.**
+
+- Simply run the program and specify the desired year and day on the command line, for example:
+  ```sh
+  dotnet run --year 2024 --day 3
+  ```
+- If the files and folders for that day do not exist, the program will automatically generate the necessary structure and template files for you.
+- You can then open the generated files and start implementing your solution.
+
 ## Project Structure
 
 - Each year has its own folder (e.g., `2016/`, `2024/`).
@@ -11,63 +22,15 @@ Welcome to the AdventOfCode project! This guide will help you get started with a
   - `config.yaml`: Configuration for tests and live runs.
   - (Optional) Input files, test files, etc.
 
-## Steps to Add a New Day
+## What Gets Generated
+- The program will create:
+  - The day folder (e.g., `2024/Day03/`)
+  - A template `DayXX.cs` file with the correct class and method stubs
+  - A `config.yaml` file for configuration
+  - Any other required files for the day
 
-1. **Create the Folder Structure**
-   - Add a new folder for the day inside the appropriate year (e.g., `2024/Day02/`).
-
-2. **Create the C# Implementation**
-   - Add a `DayXX.cs` file (e.g., `Day02.cs`).
-   - Implement a class named `DayXX` with methods `Part1(PartInput Input)` and `Part2(PartInput Input)`.
-   - Example:
-     ```csharp
-     namespace Year_2024;
-     class Day02
-     {
-         public string Part1(PartInput Input)
-         {
-             // Your solution for Part 1
-         }
-         public string Part2(PartInput Input)
-         {
-             // Your solution for Part 2
-         }
-     }
-     ```
-
-3. **Add Configuration**
-   - Create a `config.yaml` file describing test cases and live input for the day.
-   - Example:
-     ```yaml
-     name: Example Puzzle
-     year: 2024
-     day: 2
-     run: true
-     debugRun: true
-     visualization: false
-     runLive: true
-     runTests: true
-     tests:
-       - part: 1
-         run: true
-         debugRun: true
-         expected: "42"
-         source: 'test input here'
-     live:
-       - part: 1
-         run: true
-         debugRun: true
-         expected: 123
-         source: live.txt
-     ```
-
-4. **Add Input Files**
-   - Place any required input files (e.g., `live.txt`) in the day's folder.
-
-5. **Run and Test**
-   - Use the project runner to execute your new day and verify correctness.
-
-## Tips
+## Next Steps
+- Open the generated `DayXX.cs` file and implement your solution in the `Part1` and `Part2` methods.
 - Use the provided extension methods and runtime utilities for common tasks (see API documentation).
 - Check existing days for examples of structure and implementation.
 

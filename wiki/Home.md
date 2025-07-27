@@ -6,7 +6,8 @@ Welcome to the AdventOfCode project wiki! Use this index to navigate the documen
 
 ## 📖 Getting Started
 - [Getting Started Guide](Getting-Started.md)
-  - Learn how to add a new puzzle-solving day, project structure, and configuration.
+  - **Quick Start:** Just specify the year and day on the command line when running the program. If the day files do not exist, they will be created for you automatically—no manual setup required!
+  - Learn about project structure, configuration, and how the automation works.
 
 ## 🛠️ API Reference
 - [Extensions API](API-Extensions.md)

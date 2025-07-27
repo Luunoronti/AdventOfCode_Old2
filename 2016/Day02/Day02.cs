@@ -90,8 +90,25 @@ class Day02
 {
     public string Part1(PartInput Input)
     {
-        //var map = new Map<int> { DefaultFill = 0, SizeX = 3, SizeY = 3 };
+        // Example: Move 'X' across the buffer for 10 seconds
+        Visualizer
+            .Create(40, 40)
+            .EnableRulers(true)
+            .Run((vis, time) =>
+        {
+            vis.Clear('.', new Color(0.7f, 0.7f, 0.7f),
+                        new Color(0.2f, 0.2f, 0.2f));
 
+            // Move X horizontally, wrapping
+            float speed = 5.5f; // cells per second
+            float fx = (time.Seconds * speed) % 30;
+            int ix = (int)Math.Floor(fx);
+            vis.SetCell(ix, 1, 'X',
+                new Color(1f, 1f, 1f),
+                new Color(0.8f, 0.1f, 0.1f));
+            // Run for 10 seconds
+            return true;// time.Seconds < 10f;
+        });
 
         long response = Input.LineWidth;
         return response.ToString();
