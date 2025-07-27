@@ -90,7 +90,7 @@ class Day02
 {
     public string Part1(PartInput Input)
     {
-        var map = new Map<int> { DefaultFill = 0, SizeX = 3, SizeY = 3 };
+        //var map = new Map<int> { DefaultFill = 0, SizeX = 3, SizeY = 3 };
 
 
         long response = Input.LineWidth;
