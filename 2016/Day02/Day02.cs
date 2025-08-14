@@ -99,7 +99,7 @@ class Day02
         {
             ColorMode = ColorMode.TrueColor,
             TargetFps = 60,
-            AutoPlay = false,
+            AutoPlay = true,
             Layers = UiLayers.All 
         },
         frame =>
@@ -108,6 +108,13 @@ class Day02
 
             var (wx, wy) = frame.ScreenToWorld(frame.Input.MouseX, frame.Input.MouseY);
             frame.DrawCircleWorld(wx, wy, 20, '•', Rgb.Yellow, Rgb.Transparent);
+        },
+        info: (x, y) =>
+        {
+            // x,y to indeksy komórek świata (zoom<1 → lewy-górny z bloku)
+            if (x < 0 || y < 0 || x >= world.Width || y >= world.Height) return null;
+            return @$"Cell=({x},{y})  
+Char='{world.GetCell(x, y)?.Ch}'";
         });
 
         long response = Input.LineWidth;

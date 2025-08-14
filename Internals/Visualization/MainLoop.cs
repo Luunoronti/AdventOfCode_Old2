@@ -15,10 +15,16 @@ internal sealed class MainLoop
     private readonly Stopwatch _sw = new();
     private double _accum = 0;
     private InputReader _inputReader;
+    private readonly TooltipProvider? _tooltip;
 
-    public MainLoop(Terminal t, VizConfig cfg, Action<Frame> draw)
+    private int _frameCounter = 0;
+    private double _fps = 0.0;
+    private DateTime _fpsLastTime = DateTime.UtcNow;
+
+    public MainLoop(Terminal t, VizConfig cfg, Action<Frame> draw, TooltipProvider? tooltip = null)
     {
         _t = t; _cfg = cfg; _draw = draw;
+        _tooltip = tooltip;
         _vp = new Viewport();
         _buf = new CellBuffer(_t.Width, _t.Height);
         _vp.AttachTerminal(_t);
@@ -68,6 +74,12 @@ internal sealed class MainLoop
             // MYSZ (drag/wheel) — jeśli coś zrobiło zmianę, _input.Dirty już = true
             HandleMouse();
 
+            // Jeśli chcemy „ciągły render” przy AutoPlay – wymuś Dirty co iterację:
+            if (_cfg.AutoPlay && _cfg.ContinuousRenderWhenAutoPlay)
+            {
+                _input.Dirty = true;
+            }
+
             // Autoplay (może ustawić StepRequested, a przez to też zbrudzić)
             if (_cfg.AutoPlay)
             {
@@ -97,9 +109,27 @@ internal sealed class MainLoop
                 _draw(frame);
 
                 if (_cfg.Layers.HasFlag(UiLayers.Rulers)) DrawRulers();
+
+                // === TOOLTIP (nad wszystkim oprócz status bara) ===
+                DrawTooltipIfAny();
+
                 if (_cfg.Layers.HasFlag(UiLayers.StatusBar)) DrawStatusBar();
 
                 _t.Draw(_buf);
+
+                // FPS liczymy tylko gdy AutoPlay jest aktywny
+                if (_cfg.AutoPlay)
+                {
+                    _frameCounter++;
+                    var now = DateTime.UtcNow;
+                    var elapsed = (now - _fpsLastTime).TotalSeconds;
+                    if (elapsed >= 1.0)
+                    {
+                        _fps = _frameCounter / elapsed;
+                        _frameCounter = 0;
+                        _fpsLastTime = now;
+                    }
+                }
 
                 _input.StepRequested = false;
                 _input.ConsumedMouseMove();
@@ -233,51 +263,55 @@ internal sealed class MainLoop
         int W = _t.Width, H = _t.Height;
         if (W < 10 || H < 5) return;
 
-        // tła
-        for (int x = 0; x < W; x++)
-            _buf.Set(x, 0, new Cell(' ', Rgb.Black, Rgb.Gray));    // top
-        for (int y = 0; y < H; y++)
-            _buf.Set(0, y, new Cell(' ', Rgb.Black, Rgb.Gray));    // left “belka” bazowa
+        var bg = _cfg.RulerBgColor;
+        byte a = _cfg.RulerBgAlpha;
+        int lw = Math.Max(1, _cfg.LeftRulerWidth);
 
-        // napisy na top ruler
-        for (int sx = 4; sx < W; sx++)
+        // 1) Półprzezroczyste tło całego ruler’a
+        // top (y=0) — cała szerokość
+        for (int x = 0; x < W; x++)
+            _buf.BlendBg(x, 0, bg, a);
+
+        // left (x=0..lw-1) — cała wysokość
+        for (int x = 0; x < Math.Min(lw, W); x++)
+            for (int y = 0; y < H; y++)
+                _buf.BlendBg(x, y, bg, a);
+
+        // 2) Napisy (bez zmiany tła!)
+        // top ruler: co ~10 kolumn wypisz współrzędną świata w tej kolumnie
+        for (int sx = lw; sx < W; sx++)
         {
             var (wx, _) = _vp.ScreenToWorld(sx, 1);
             if (sx % 10 == 0)
             {
                 var label = ((int)Math.Round(wx)).ToString();
-                Renderer.PutText(_buf, sx, 0, label, Rgb.Black, Rgb.Gray);
+                Renderer.PutTextKeepBg(_buf, sx, 0, label, Rgb.White);
             }
         }
 
-        // napisy na left ruler (3-znakowe)
+        // left ruler: co 2 wiersze 3-znakowa etykieta
         for (int sy = 1; sy < H - 1; sy++)
         {
-            var (_, wy) = _vp.ScreenToWorld(4, sy);
+            var (_, wy) = _vp.ScreenToWorld(lw, sy);
             if (sy % 2 == 0)
             {
                 var s = ((int)Math.Round(wy)).ToString();
                 s = s.Length <= 3 ? s.PadLeft(3) : s[^3..];
-                Renderer.PutText(_buf, 0, sy, s, Rgb.Black, Rgb.Gray);
+                Renderer.PutTextKeepBg(_buf, 0, sy, s, Rgb.White);
             }
         }
 
-        // === HIGHLIGHT pozycji myszy ===
+        // 3) Highlight pozycji myszy (półprzezroczysty) – cienkie linie jak wcześniej
         int msx = _input.MouseX.Clamp(0, W - 1);
         int msy = _input.MouseY.Clamp(0, H - 1);
-        var hi = _cfg.RulerHighlight;
+        byte ha = _cfg.RulerHighlightAlpha;
+        var hi = new Rgb(80, 140, 240);
 
-        // top: podświetl pojedynczą komórkę nad kursorem
-        {
-            var c = _buf[msx, 0];
-            _buf.Set(msx, 0, new Cell(c.Ch, c.Fg, hi));
-        }
+        // top: jedna komórka nad kursorem
+        _buf.BlendBg(msx, 0, hi, ha);
 
-        // left: podświetl cały rząd rulera (kolumny 0..3) na wysokości kursora
-        {
-            var c = _buf[0, msy];
-            _buf.Set(0, msy, new Cell(c.Ch, c.Fg, hi));
-        }
+        // left: tylko pierwsza kolumna (x=0) na wysokości kursora
+        _buf.BlendBg(0, msy, hi, ha);
     }
     private void DrawStatusBar()
     {
@@ -291,9 +325,32 @@ internal sealed class MainLoop
         var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
 
         string shortcuts = " Keys: Ctrl+Q quit | =/- zoom | LMB drag pan | Arrows/WASD pan | Space step | 0 reset zoom | F5 all | F6 map | F7 ui | F8 overlays ";
-        string info = $" Zoom={_vp.Zoom:F2}  Mouse=({ix},{iy})  Auto={(_cfg.AutoPlay ? $"{_cfg.AutoStepPerSecond:F1}/s" : "off")}  Layers={_cfg.Layers} ";
+        string autoInfo = _cfg.AutoPlay
+            ? $"{_cfg.AutoStepPerSecond:F1}/s  FPS={_fps:F1}"
+            : "off";
+
+        string info = $" Zoom={_vp.Zoom:F2}  MouseWorldCell=({ix},{iy})  Auto={autoInfo}  Layers={_cfg.Layers} ";
         string status = (shortcuts + "| " + info).PadRight(W);
 
         Renderer.PutText(_buf, 0, H - 1, status[..Math.Min(W, status.Length)], Rgb.Black, Rgb.Gray);
     }
+
+    private void DrawTooltipIfAny()
+    {
+        if (_tooltip == null) return;
+        if (!_cfg.Layers.HasFlag(UiLayers.Overlays)) return; // opcjonalnie podpinamy pod warstwę Overlays
+
+        // komórka świata pod kursorem (z korektą dla zoom<1)
+        var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
+        string? text = _tooltip(ix, iy);
+        if (string.IsNullOrEmpty(text)) return;
+
+        // pozycja ekranu dla dymka – domyślnie przy kurszorze, z paddingiem
+        int sx = Math.Clamp(_input.MouseX + 2, 0, _t.Width - 1);
+        int sy = Math.Clamp(_input.MouseY + 1, 0, _t.Height - 2); // zostaw miejsce na status
+
+        // zrób jednoliniowy tooltip (prosto). Jeśli chcesz wielolinijkowy – łatwo rozszerzyć.
+        Renderer.DrawTooltipBox(_buf, sx, sy, text!);
+    }
+
 }

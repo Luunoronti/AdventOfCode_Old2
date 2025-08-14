@@ -110,4 +110,50 @@ internal static class Renderer
         for (int i = 0; i < text.Length; i++)
             buf.TrySet(sx + i, sy, new Cell(text[i], fg, bg));
     }
+
+    public static void PutTextKeepBg(CellBuffer buf, int sx, int sy, string text, Rgb fg)
+    {
+        for (int i = 0; i < text.Length; i++)
+        {
+            int x = sx + i;
+            if ((uint)x >= (uint)buf.Width || (uint)sy >= (uint)buf.Height) break;
+            var cur = buf[x, sy];
+            buf.TrySet(x, sy, new Cell(text[i], fg, cur.Bg));
+        }
+    }
+
+    public static void DrawTooltipBox(CellBuffer buf, int sx, int sy, string text,
+                                  byte bgAlpha = 180, byte borderAlpha = 220)
+    {
+        // Dopasuj do krawędzi okna
+        int W = buf.Width, H = buf.Height;
+        if (string.IsNullOrEmpty(text)) return;
+
+        // granice i pozycja
+        int padX = 1, padY = 0; // cienka ramka
+        int w = Math.Min(text.Length + padX * 2, Math.Max(6, W));
+        int x0 = sx, y0 = sy;
+        if (x0 + w >= W) x0 = Math.Max(0, W - w - 1);
+        if (y0 >= H - 1) y0 = Math.Max(0, H - 2);
+
+        // kolory
+        var bg = new Rgb(20, 20, 20);      // tło dymka
+        var bd = new Rgb(255, 255, 255);   // border jako lekkie rozjaśnienie
+        var fg = new Rgb(245, 245, 245);   // tekst
+
+        // tło (blend)
+        for (int x = 0; x < w; x++)
+            buf.BlendBg(x0 + x, y0, bg, bgAlpha);
+
+        // pseudo-border (pojedyncze piksele na końcach dymka – delikatny akcent)
+        buf.BlendBg(x0, y0, bd, borderAlpha);
+        buf.BlendBg(x0 + w - 1, y0, bd, borderAlpha);
+
+        // tekst (bez ruszania tła)
+        PutTextKeepBg(buf, x0 + padX, y0, Truncate(text, w - padX * 2), fg);
+    }
+
+    private static string Truncate(string s, int len)
+        => (len <= 0 || s.Length <= len) ? s : s.AsSpan(0, len).ToString();
+
 }
