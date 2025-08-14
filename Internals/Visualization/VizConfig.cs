@@ -15,4 +15,6 @@ public record VizConfig
 
     // WARSTWY:
     public UiLayers Layers { get; set; } = UiLayers.All;
+
+    public Rgb RulerHighlight { get; set; } = new Rgb(80, 140, 240);
 }

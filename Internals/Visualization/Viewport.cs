@@ -14,6 +14,29 @@ internal sealed class Viewport
 
     public void AttachTerminal(Terminal t) => _t = t;
 
+    // Zwraca indeks komórki świata (int,int) pod danym pikselem ekranu,
+    // dla zoom >= 1: najbliższa komórka (round),
+    // dla zoom < 1: lewa-górna komórka reprezentowana przez ten piksel.
+    public (int ix, int iy) WorldCellUnderScreen(int sx, int sy)
+    {
+        // współrzędne świata w środku piksela
+        double wx = (sx - 4) / Zoom + OriginX;
+        double wy = (sy - 1) / Zoom + OriginY;
+
+        if (Zoom >= 1.0)
+        {
+            return ((int)Math.Round(wx), (int)Math.Round(wy));
+        }
+        else
+        {
+            double block = 1.0 / Zoom; // ile komórek świata przypada na 1 znak terminala
+                                       // lewy-górny “róg” reprezentowanego bloku wokół środka piksela
+            int ix = (int)Math.Floor(wx - block * 0.5);
+            int iy = (int)Math.Floor(wy - block * 0.5);
+            return (ix, iy);
+        }
+    }
+
     public (double wWorld, double hWorld) VisibleWorldSize()
     {
         double wWorld = Math.Max(1.0, (_t.Width - 4) / Zoom);

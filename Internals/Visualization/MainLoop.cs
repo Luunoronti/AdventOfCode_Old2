@@ -233,14 +233,13 @@ internal sealed class MainLoop
         int W = _t.Width, H = _t.Height;
         if (W < 10 || H < 5) return;
 
-        // top bar
+        // tła
         for (int x = 0; x < W; x++)
-            _buf.Set(x, 0, new Cell(' ', Rgb.Black, Rgb.Gray));
-        // left bar
+            _buf.Set(x, 0, new Cell(' ', Rgb.Black, Rgb.Gray));    // top
         for (int y = 0; y < H; y++)
-            _buf.Set(0, y, new Cell(' ', Rgb.Black, Rgb.Gray));
+            _buf.Set(0, y, new Cell(' ', Rgb.Black, Rgb.Gray));    // left “belka” bazowa
 
-        // znaczniki top
+        // napisy na top ruler
         for (int sx = 4; sx < W; sx++)
         {
             var (wx, _) = _vp.ScreenToWorld(sx, 1);
@@ -251,7 +250,7 @@ internal sealed class MainLoop
             }
         }
 
-        // lewa
+        // napisy na left ruler (3-znakowe)
         for (int sy = 1; sy < H - 1; sy++)
         {
             var (_, wy) = _vp.ScreenToWorld(4, sy);
@@ -262,8 +261,24 @@ internal sealed class MainLoop
                 Renderer.PutText(_buf, 0, sy, s, Rgb.Black, Rgb.Gray);
             }
         }
-    }
 
+        // === HIGHLIGHT pozycji myszy ===
+        int msx = _input.MouseX.Clamp(0, W - 1);
+        int msy = _input.MouseY.Clamp(0, H - 1);
+        var hi = _cfg.RulerHighlight;
+
+        // top: podświetl pojedynczą komórkę nad kursorem
+        {
+            var c = _buf[msx, 0];
+            _buf.Set(msx, 0, new Cell(c.Ch, c.Fg, hi));
+        }
+
+        // left: podświetl cały rząd rulera (kolumny 0..3) na wysokości kursora
+        {
+            var c = _buf[0, msy];
+            _buf.Set(0, msy, new Cell(c.Ch, c.Fg, hi));
+        }
+    }
     private void DrawStatusBar()
     {
         int W = _t.Width, H = _t.Height;
@@ -272,12 +287,13 @@ internal sealed class MainLoop
         for (int x = 0; x < W; x++)
             _buf.Set(x, H - 1, new Cell(' ', Rgb.Black, Rgb.Gray));
 
-        var (wxm, wym) = _vp.ScreenToWorld(_input.MouseX, _input.MouseY);
-        string shortcuts = " Keys: Ctrl+Q quit | =/- zoom | LMB drag pan | Arrows/WASD pan | Space step | F5 all | F6 map | F7 ui | F8 overlays ";
+        // komórka świata pod kursorem (z korektą dla zoom<1)
+        var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
 
-        string drag = _input.MouseLeftDragging ? "LMB-drag" : _input.MouseRightDragging ? "RMB-drag" : "no-drag";
-        string info = $" {drag}  Zoom={_vp.Zoom:F2}  MouseScr=({_input.MouseX},{_input.MouseY})  MouseWorld=({wxm:F1},{wym:F1})  Auto={(_cfg.AutoPlay ? $"{_cfg.AutoStepPerSecond:F1}/s" : "off")}  Layers={_cfg.Layers} ";
+        string shortcuts = " Keys: Ctrl+Q quit | =/- zoom | LMB drag pan | Arrows/WASD pan | Space step | 0 reset zoom | F5 all | F6 map | F7 ui | F8 overlays ";
+        string info = $" Zoom={_vp.Zoom:F2}  Mouse=({ix},{iy})  Auto={(_cfg.AutoPlay ? $"{_cfg.AutoStepPerSecond:F1}/s" : "off")}  Layers={_cfg.Layers} ";
         string status = (shortcuts + "| " + info).PadRight(W);
+
         Renderer.PutText(_buf, 0, H - 1, status[..Math.Min(W, status.Length)], Rgb.Black, Rgb.Gray);
     }
 }
