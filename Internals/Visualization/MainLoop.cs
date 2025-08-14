@@ -409,6 +409,7 @@ internal sealed class MainLoop
         var (wx, wy) = _vp.ScreenToWorld(_input.MouseX, _input.MouseY);
         // Skip tooltip if cursor is over a window
         bool overWindow = Window.All().Any(w =>
+            w.Visible &&
             _input.MouseX >= w.X &&
             _input.MouseX < w.X + w.W &&
             _input.MouseY >= w.Y &&
