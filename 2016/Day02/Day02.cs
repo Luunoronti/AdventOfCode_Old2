@@ -1,3 +1,5 @@
+﻿
+using Visualization;
 
 namespace Year2016;
 
@@ -91,23 +93,21 @@ class Day02
     public string Part1(PartInput Input)
     {
         // Example: Move 'X' across the buffer for 10 seconds
-        Visualizer
-            .Create(40, 40)
-            .EnableRulers(true)
-            .Run((vis, time) =>
-        {
-            vis.Clear('.', new Color(0.7f, 0.7f, 0.7f),
-                        new Color(0.2f, 0.2f, 0.2f));
+        var world = new DemoWorld(300, 150);
 
-            // Move X horizontally, wrapping
-            float speed = 5.5f; // cells per second
-            float fx = (time.Seconds * speed) % 30;
-            int ix = (int)Math.Floor(fx);
-            vis.SetCell(ix, 1, 'X',
-                new Color(1f, 1f, 1f),
-                new Color(0.8f, 0.1f, 0.1f));
-            // Run for 10 seconds
-            return true;// time.Seconds < 10f;
+        Visualizer.Run(new VizConfig
+        {
+            ColorMode = ColorMode.TrueColor,
+            TargetFps = 60,
+            AutoPlay = false,
+            Layers = UiLayers.All 
+        },
+        frame =>
+        {
+            frame.DrawWorld(world);
+
+            var (wx, wy) = frame.ScreenToWorld(frame.Input.MouseX, frame.Input.MouseY);
+            frame.DrawCircleWorld(wx, wy, 20, '•', Rgb.Yellow, Rgb.Transparent);
         });
 
         long response = Input.LineWidth;
