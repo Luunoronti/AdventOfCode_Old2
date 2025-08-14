@@ -22,6 +22,8 @@ internal sealed class MainLoop
     private double _fps = 0.0;
     private DateTime _fpsLastTime = DateTime.UtcNow;
 
+    private Window? _helpWin;
+
     public MainLoop(Terminal t, VizConfig cfg, Action<Frame> draw, TooltipProvider? tooltip = null)
     {
         _t = t; _cfg = cfg; _draw = draw;
@@ -57,6 +59,10 @@ internal sealed class MainLoop
                 _input.OnResize();          // ustawia _dragLastX/Y = MouseX/Y
                 _inputReader?.RequestReset(); // zrywa ewentualną niedomkniętą sekwencję ESC
                 _input.Dirty = true;
+
+                // przytnij wszystkie okna do nowego rozmiaru ekranu
+                foreach (var w in Window.All())
+                    ;
             }
 
             // ODBIÓR KLAWISZY — limit na ramkę:
@@ -74,6 +80,11 @@ internal sealed class MainLoop
 
             // MYSZ (drag/wheel) — jeśli coś zrobiło zmianę, _input.Dirty już = true
             HandleMouse();
+
+            if (Window.HandleMouse(_input, _t.Width, _t.Height))
+            {
+                _input.Dirty = true;
+            }
 
             // Jeśli chcemy „ciągły render” przy AutoPlay – wymuś Dirty co iterację:
             if (_cfg.AutoPlay && _cfg.ContinuousRenderWhenAutoPlay)
@@ -104,12 +115,17 @@ internal sealed class MainLoop
             {
                 _input.Dirty = false;
 
+                _buf.AlphaBlendEnabled = (_cfg.ColorMode == ColorMode.TrueColor);
+
                 _buf.Fill(new Cell(' ', Rgb.White, Rgb.Black));
 
                 var frame = new Frame(_t, _vp, _buf, _input, _cfg);
                 _draw(frame);
 
                 if (_cfg.Layers.HasFlag(UiLayers.Rulers)) DrawRulers();
+
+                // okna – na wierzchu nad treścią i rulerami
+                Window.DrawAll(_buf);
 
                 // === TOOLTIP (nad wszystkim oprócz status bara) ===
                 DrawTooltipIfAny();
@@ -191,6 +207,11 @@ internal sealed class MainLoop
             case ConsoleKey.A: Pan(-1, 0); break;
             case ConsoleKey.D: Pan(+1, 0); break;
 
+            case ConsoleKey.F1:
+                ToggleHelpWindow();
+                _input.Dirty = true;
+                break;
+
             case ConsoleKey.D0: // reset zoomu do 1.0 wokół środka ekranu
                 {
                     int sx = _t.Width / 2;
@@ -218,6 +239,20 @@ internal sealed class MainLoop
             case ConsoleKey.T:
                 _tooltipEnabled = !_tooltipEnabled;
                 break;
+
+            case ConsoleKey.C:
+                {
+                    // przełącz
+                    _cfg.ColorMode = _cfg.ColorMode == ColorMode.TrueColor ? ColorMode.Console16 : ColorMode.TrueColor;
+
+                    // poinformuj Terminal i wyczyść ekran, żeby nie zostały stare atrybuty
+                    _t.SetColorMode(_cfg.ColorMode);
+                    _t.Clear();
+
+                    _input.Dirty = true; // wymuś pełny redraw
+                    break;
+                }
+
         }
     }
 
@@ -231,6 +266,12 @@ internal sealed class MainLoop
             double factor = Math.Pow(1.1, wheel);
             ZoomAtCursor(factor);
             _input.Dirty = true;
+        }
+
+        // jeśli przeciągamy okno – nie pan’ujemy sceny
+        if (Window.IsDragging)
+        {
+            return;
         }
 
         if (_input.MouseLeftDragging || _input.MouseRightDragging)
@@ -273,15 +314,30 @@ internal sealed class MainLoop
         byte a = _cfg.RulerBgAlpha;
         int lw = Math.Max(1, _cfg.LeftRulerWidth);
 
+        bool opaqueMode = !_buf.AlphaBlendEnabled ? true : false;
+
         // 1) Półprzezroczyste tło całego ruler’a
         // top (y=0) — cała szerokość
         for (int x = 0; x < W; x++)
-            _buf.BlendBg(x, 0, bg, a);
+        {
+            if (opaqueMode)
+                _buf.TrySet(x, 0, new Cell(' ', Rgb.White, bg)); // clear char, solid bg
+            else
+                _buf.BlendBgAndFg(x, 0, bg, a, bg, a);
+        }
+
 
         // left (x=0..lw-1) — cała wysokość
         for (int x = 0; x < Math.Min(lw, W); x++)
+        {
             for (int y = 0; y < H; y++)
-                _buf.BlendBg(x, y, bg, a);
+            {
+                if (opaqueMode)
+                    _buf.TrySet(x, y, new Cell(' ', Rgb.White, bg));
+                else
+                    _buf.BlendBgAndFg(x, y, bg, a, bg, a);
+            }
+        }
 
         // 2) Napisy (bez zmiany tła!)
         // top ruler: co ~10 kolumn wypisz współrzędną świata w tej kolumnie
@@ -313,11 +369,16 @@ internal sealed class MainLoop
         byte ha = _cfg.RulerHighlightAlpha;
         var hi = new Rgb(80, 140, 240);
 
-        // top: jedna komórka nad kursorem
-        _buf.BlendBg(msx, 0, hi, ha);
-
-        // left: tylko pierwsza kolumna (x=0) na wysokości kursora
-        _buf.BlendBg(0, msy, hi, ha);
+        if (opaqueMode)
+        {
+            _buf.TrySet(msx, 0, new Cell(_buf[msx, 0].Ch, hi, bg));   // fg=hi, bg already set above
+            _buf.TrySet(0, msy, new Cell(_buf[0, msy].Ch, hi, bg));
+        }
+        else
+        {
+            _buf.BlendBgAndFg(msx, 0, hi, ha, hi, ha);
+            _buf.BlendBgAndFg(0, msy, hi, ha, hi, ha);
+        }
     }
     private void DrawStatusBar()
     {
@@ -329,23 +390,35 @@ internal sealed class MainLoop
 
         // komórka świata pod kursorem (z korektą dla zoom<1)
         var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
+        string autoInfo = _cfg.AutoPlay ? $"{_cfg.AutoStepPerSecond:F1}/s | FPS {_fps:F1}" : "off";
 
-        string shortcuts = " Keys: Ctrl+Q quit | =/- zoom | LMB drag pan | Arrows/WASD pan | Space step | T Info | 0 reset zoom | F5 all | F6 map | F7 ui | F8 overlays ";
-        string autoInfo = _cfg.AutoPlay
-            ? $"{_cfg.AutoStepPerSecond:F1}/s  FPS={_fps:F1}"
-            : "off";
-
-        string info = $" Zoom={_vp.Zoom:F2}  MouseWorldCell=({ix},{iy})  Auto={autoInfo}  Layers={_cfg.Layers} ";
-        string status = (shortcuts + "| " + info).PadRight(W);
+        // <<< nowa linia statusu
+        string info = $" {_cfg.ColorMode} | {_cfg.Layers} | Zoom {_vp.Zoom:F2} | Auto {autoInfo} | Cell {ix}, {iy}";
+        string status = $"F1 Help | {info}".PadRight(W);
 
         Renderer.PutText(_buf, 0, H - 1, status[..Math.Min(W, status.Length)], Rgb.Black, Rgb.Gray);
     }
+
 
     private void DrawTooltipIfAny()
     {
         if (!_tooltipEnabled) return; // <-- nowa linia
         if (_tooltip == null) return;
         if (!_cfg.Layers.HasFlag(UiLayers.Overlays)) return;
+
+        var (wx, wy) = _vp.ScreenToWorld(_input.MouseX, _input.MouseY);
+        // Skip tooltip if cursor is over a window
+        bool overWindow = Window.All().Any(w =>
+            _input.MouseX >= w.X &&
+            _input.MouseX < w.X + w.W &&
+            _input.MouseY >= w.Y &&
+            _input.MouseY < w.Y + w.H);
+
+        if (overWindow)
+        {
+            return;
+        }
+
 
         var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
         string? text = _tooltip(ix, iy);
@@ -369,6 +442,67 @@ internal sealed class MainLoop
             sy = Math.Max(0, _input.MouseY - lines.Length - 1);
 
         Renderer.DrawTooltipBox(_buf, sx, sy, lines, _cfg.TooltipBgAlpha, _cfg.TooltipBorderAlpha);
+    }
+
+
+
+    private void ToggleHelpWindow()
+    {
+        if (_helpWin == null)
+        {
+            // rozmiar i pozycja (wyśrodkuj)
+            int w = Math.Min(64, _t.Width - 6);
+            int h = Math.Min(18, _t.Height - 6);
+            int x = (_t.Width - w) / 2;
+            int y = (_t.Height - h) / 2;
+
+            _helpWin = Window.Create(
+                x: x, y: y, w: w, h: h,
+                bg: new Rgb(20, 20, 24), bgAlpha: 220,
+                z: 100,
+                content: (buf, self) =>
+                {
+                    // tytuł
+                    Renderer.PutTextKeepBg(buf, self.X + 2, self.Y, "[ Help ]", new Rgb(255, 230, 120));
+
+                    int ln = self.Y + 2;
+                    int lx = self.X + 2;
+
+                    // lista skrótów
+                    void L(string s) { Renderer.PutTextKeepBg(buf, lx, ln++, s, new Rgb(230, 230, 230)); }
+
+                    L("Esc/Ctrl+Q : quit");
+                    L("= / -       : zoom in/out (also mouse wheel)");
+                    L("0           : reset zoom");
+                    L("LMB drag    : pan (PPM also if terminal allows)");
+                    L("Arrows/WASD : pan");
+                    L("Space       : step");
+                    L("F5/F6/F7/F8 : layers (all/map/ui/overlays)");
+                    L("C           : toggle color mode (TrueColor/16)");
+                    L("T           : toggle tooltip");
+
+                    // mała podpowiedź
+                    ln++;
+                    Renderer.PutTextKeepBg(buf, lx, ln, "Press F1 to hide this window.", new Rgb(200, 220, 255));
+                }
+            );
+
+            _helpWin.ShowCloseButton = true;
+            _helpWin.OnClose = w =>
+            {
+                // po zamknięciu wyczyść referencję i odrysuj
+                _helpWin = null;
+                _input.Dirty = true;
+            };
+
+            // (opcjonalnie) wyróżnij aktywną ramkę:
+            _helpWin.BorderColorActive = new Rgb(255, 200, 80);
+
+        }
+        else
+        {
+            _helpWin.Visible = !_helpWin.Visible;
+        }
     }
 
 }

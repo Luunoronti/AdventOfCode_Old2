@@ -2,7 +2,7 @@ namespace Visualization;
 
 public record VizConfig
 {
-    public ColorMode ColorMode { get; init; } = ColorMode.TrueColor;
+    public ColorMode ColorMode { get; set; } = ColorMode.TrueColor;
     public int TargetFps { get; init; } = 30;
 
     // autoplay / pętla krokowa:
@@ -18,7 +18,7 @@ public record VizConfig
 
     public Rgb RulerHighlight { get; set; } = new Rgb(80, 140, 240);
     public Rgb RulerBgColor { get; set; } = new Rgb(40, 40, 40); // ciemny szary
-    public byte RulerBgAlpha { get; set; } = 120;                 // ~47% przezroczystości
+    public byte RulerBgAlpha { get; set; } = 190;                 // ~47% przezroczystości
     public byte RulerHighlightAlpha { get; set; } = 160;          // podświetlenie jest odrobinę mocniejsze
     public int LeftRulerWidth { get; set; } = 4;                 // szerokość lewego rulera (kolumny 0..W-1)
 

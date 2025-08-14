@@ -72,6 +72,7 @@ public sealed class InputReader
                         case 's': case 'S': _input.EnqueueKey(ConsoleKey.S); break;
                         case 'd': case 'D': _input.EnqueueKey(ConsoleKey.D); break;
                         case 't': case 'T': _input.EnqueueKey(ConsoleKey.T); break;
+                        case 'c': case 'C': _input.EnqueueKey(ConsoleKey.C); break;
                         default: break;
                     }
                     continue;
@@ -103,12 +104,14 @@ public sealed class InputReader
                             }
                             inEsc = false; esc.Clear(); continue;
                         }
-                        // F5..F8: ESC [ 15~ / 17~ / 18~ / 19~
-                        if (last == '~' && TryParseFn(esc.ToString(), out var key))
-                        {
-                            _input.EnqueueKey(key);
-                            inEsc = false; esc.Clear(); continue;
-                        }
+                    }
+
+                    // F1..F12 (SS3 lub CSI-tilde)
+                    if (TryParseFn(esc.ToString(), out var fkey, out bool sh, out bool al, out bool ct))
+                    {
+                        _input.EnqueueKey(fkey, ctrl: ct, shift: sh, alt: al);
+                        inEsc = false; esc.Clear();
+                        continue;
                     }
 
                     if (esc.Length > 64) { inEsc = false; esc.Clear(); } // sanity
@@ -160,20 +163,101 @@ public sealed class InputReader
     }
 
 
-    private static bool TryParseFn(string seq, out ConsoleKey key)
+    private static bool TryParseFn(string seq, out ConsoleKey key, out bool shift, out bool alt, out bool ctrl)
     {
-        key = default;
+        key = default; shift = alt = ctrl = false;
+
+        // --- Wariant 1: SS3 bez modyfikatorów: ESC O P/Q/R/S => F1..F4 ---
+        if (seq.Length >= 3 && seq[0] == '\x1b' && seq[1] == 'O')
+        {
+            key = seq[^1] switch
+            {
+                'P' => ConsoleKey.F1,
+                'Q' => ConsoleKey.F2,
+                'R' => ConsoleKey.F3,
+                'S' => ConsoleKey.F4,
+                _ => default
+            };
+            return key != default;
+        }
+
+        // --- Wariant 2a: CSI „tilde”: ESC [ <num> (;<mod>)? ~ => F1..F12 + mody ---
         int lb = seq.IndexOf('[');
         int til = seq.IndexOf('~');
-        if (lb < 0 || til < 0) return false;
-        var num = seq.Substring(lb + 1, til - (lb + 1));
-        return num switch
+        if (lb >= 0 && til > lb)
         {
-            "15" => (key = ConsoleKey.F5) != default,
-            "17" => (key = ConsoleKey.F6) != default,
-            "18" => (key = ConsoleKey.F7) != default,
-            "19" => (key = ConsoleKey.F8) != default,
-            _ => false
-        };
+            var payload = seq.Substring(lb + 1, til - (lb + 1)); // "11" albo "11;5" itd.
+            int sem = payload.IndexOf(';');
+            string numStr = sem >= 0 ? payload.Substring(0, sem) : payload;
+            string modStr = sem >= 0 ? payload.Substring(sem + 1) : null;
+
+            key = numStr switch
+            {
+                "11" => ConsoleKey.F1,
+                "12" => ConsoleKey.F2,
+                "13" => ConsoleKey.F3,
+                "14" => ConsoleKey.F4,
+                "15" => ConsoleKey.F5,
+                "17" => ConsoleKey.F6,
+                "18" => ConsoleKey.F7,
+                "19" => ConsoleKey.F8,
+                "20" => ConsoleKey.F9,
+                "21" => ConsoleKey.F10,
+                "23" => ConsoleKey.F11,
+                "24" => ConsoleKey.F12,
+                _ => default
+            };
+            if (key == default) return false;
+
+            if (!string.IsNullOrEmpty(modStr) && int.TryParse(modStr, out int m))
+            {
+                // xterm: m = 1 + (Shift?1) + (Alt?2) + (Ctrl?4)
+                int mask = Math.Max(1, m) - 1;
+                shift = (mask & 1) != 0;
+                alt = (mask & 2) != 0;
+                ctrl = (mask & 4) != 0;
+            }
+            return true;
+        }
+
+        // --- Wariant 2b: CSI dla F1..F4 w formie litery: ESC [ 1 ; <mod> P/Q/R/S ---
+        // przykłady: ESC [ 1 ; 2 P  (F1+Shift), ESC [ 1 ; 5 Q (F2+Ctrl)
+        int lb2 = seq.IndexOf('[');
+        if (lb2 >= 0 && seq.Length >= lb2 + 4) // min: "[1;2P"
+        {
+            // Wyciągnij "1;<mod>" i ostatnią literę
+            char last = seq[^1];
+            if (last is 'P' or 'Q' or 'R' or 'S')
+            {
+                string between = seq.Substring(lb2 + 1, seq.Length - (lb2 + 2)); // np. "1;5P" -> "1;5"
+                int sem2 = between.IndexOf(';');
+                if (sem2 > 0)
+                {
+                    string n = between.Substring(0, sem2);
+                    string mstr = between.Substring(sem2 + 1);
+                    if (n == "1" && int.TryParse(mstr, out int m))
+                    {
+                        key = last switch
+                        {
+                            'P' => ConsoleKey.F1,
+                            'Q' => ConsoleKey.F2,
+                            'R' => ConsoleKey.F3,
+                            'S' => ConsoleKey.F4,
+                            _ => default
+                        };
+                        if (key == default) return false;
+                        int mask = Math.Max(1, m) - 1;
+                        shift = (mask & 1) != 0;
+                        alt = (mask & 2) != 0;
+                        ctrl = (mask & 4) != 0;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
+
+
 }

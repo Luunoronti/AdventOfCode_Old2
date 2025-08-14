@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -17,13 +18,25 @@ internal sealed class Terminal : IDisposable
 
 
     private readonly bool _vtOk;
-    private readonly ColorMode _mode;
+    private ColorMode _mode;
     private int _width, _height;
 
     public int Width => _width;
     public int Height => _height;
     private readonly StringBuilder _sb = new StringBuilder(64 * 1024);
 
+    // ANSI 16 SGR code tables (indexes line up with Rgb.Ansi16Palette)
+    private static readonly int[] Ansi16FgCodes = { 30, 31, 32, 33, 34, 35, 36, 37, 90, 91, 92, 93, 94, 95, 96, 97 };
+    private static readonly int[] Ansi16BgCodes = { 40, 41, 42, 43, 44, 45, 46, 47, 100, 101, 102, 103, 104, 105, 106, 107 };
+
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static (int fg, int bg) MapToAnsi16(Rgb fg, Rgb bg)
+    {
+        int fi = fg.NearestAnsi16Index();
+        int bi = bg.NearestAnsi16Index();
+        return (Ansi16FgCodes[fi], Ansi16BgCodes[bi]);
+    }
 
     public Terminal(ColorMode mode)
     {
@@ -47,6 +60,14 @@ internal sealed class Terminal : IDisposable
     {
         if (on) Console.Write("\x1b[?1003h\x1b[?1006h");
         else Console.Write("\x1b[?1003l\x1b[?1006l");
+    }
+
+    public void SetColorMode(ColorMode mode)
+    {
+        // zmień tryb rysowania
+        _mode = mode;
+        // zresetuj atrybuty, żeby nie zostały stare kolory
+        Console.Write("\x1b[0m");
     }
 
     public bool TryRefreshSize()
@@ -77,31 +98,75 @@ internal sealed class Terminal : IDisposable
     public void Draw(CellBuffer buf)
     {
         _sb.Clear();
-        _sb.Append("\x1b[H"); // Home
+        _sb.Append("\x1b[H"); // Home (1,1)
 
-        for (int y = 0; y < buf.Height; y++)
+        if (_mode == ColorMode.TrueColor)
         {
-            for (int x = 0; x < buf.Width; x++)
-            {
-                var c = buf[x, y];
-                if (_mode == ColorMode.TrueColor)
-                {
-                    _sb.Append($"\x1b[48;2;{c.Bg.R};{c.Bg.G};{c.Bg.B}m\x1b[38;2;{c.Fg.R};{c.Fg.G};{c.Fg.B}m");
-                }
-                else
-                {
-                    _sb.Append("\x1b[0m");
-                }
-                _sb.Append(c.Ch);
-            }
-            _sb.Append("\x1b[0m");
-            if (y < buf.Height - 1) _sb.Append("\r\n"); // CRLF: nowa linia i powrót do kolumny 1
+            // Stan wyjściowy: brak ustawionych kolorów → pierwsza komórka wymusi oba kody
+            Rgb curFg = new Rgb(0, 0, 0);
+            Rgb curBg = new Rgb(0, 0, 0);
+            bool colorInited = false;
 
+            for (int y = 0; y < buf.Height; y++)
+            {
+                for (int x = 0; x < buf.Width; x++)
+                {
+                    var c = buf[x, y];
+
+                    if (!colorInited || !RgbEquals(c.Bg, curBg))
+                    {
+                        AppendBgTrueColor(_sb, c.Bg);
+                        curBg = c.Bg;
+                        colorInited = true;
+                    }
+                    if (!colorInited || !RgbEquals(c.Fg, curFg))
+                    {
+                        AppendFgTrueColor(_sb, c.Fg);
+                        curFg = c.Fg;
+                        colorInited = true;
+                    }
+
+                    _sb.Append(c.Ch);
+                }
+                if (y < buf.Height - 1) _sb.Append("\r\n");
+            }
         }
+        else // ColorMode.Console16
+        {
+            int curFg = -1, curBg = -1; // „brak koloru”
+            for (int y = 0; y < buf.Height; y++)
+            {
+                for (int x = 0; x < buf.Width; x++)
+                {
+                    var c = buf[x, y];
+                    var (fgCode, bgCode) = MapToAnsi16(c.Fg, c.Bg);
+
+                    if (bgCode != curBg) { _sb.Append("\x1b[").Append(bgCode).Append('m'); curBg = bgCode; }
+                    if (fgCode != curFg) { _sb.Append("\x1b[").Append(fgCode).Append('m'); curFg = fgCode; }
+
+                    _sb.Append(c.Ch);
+                }
+                if (y < buf.Height - 1) _sb.Append("\r\n");
+            }
+        }
+
+        // Reset na końcu, żeby nie zostawiać terminala w customowych kolorach
         _sb.Append("\x1b[0m");
         Console.Write(_sb);
-
     }
+
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool RgbEquals(Rgb a, Rgb b) => a.R == b.R && a.G == b.G && a.B == b.B;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void AppendFgTrueColor(StringBuilder sb, Rgb c)
+        => sb.Append("\x1b[38;2;").Append(c.R).Append(';').Append(c.G).Append(';').Append(c.B).Append('m');
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void AppendBgTrueColor(StringBuilder sb, Rgb c)
+        => sb.Append("\x1b[48;2;").Append(c.R).Append(';').Append(c.G).Append(';').Append(c.B).Append('m');
+
 
     private static void Write(string s) => Console.Write(s);
 
@@ -138,5 +203,8 @@ internal sealed class Terminal : IDisposable
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
-    public void Dispose() { ShowCursor(); EnableMouse(false); }
+    public void Dispose()
+    {
+        ShowCursor(); EnableMouse(false);
+    }
 }

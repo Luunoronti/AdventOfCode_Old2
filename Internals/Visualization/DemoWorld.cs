@@ -4,6 +4,8 @@ namespace Visualization;
 
 public sealed class DemoWorld : IWorldSource
 {
+
+
     public int Width { get; }
     public int Height { get; }
     private readonly Cell[,] _cells;
@@ -13,41 +15,33 @@ public sealed class DemoWorld : IWorldSource
         Width = width; Height = height;
         _cells = new Cell[width, height];
 
-        var rnd = new Random(1);
         var chars = " .:-=+*#%@".AsSpan();
 
         for (int y = 0; y < height; y++)
         {
+            // Hue runs left→right, Value (brightness) runs top→bottom
+            double v = 0.25 + 0.75 * (height <= 1 ? 0.0 : (double)y / (height - 1)); // 0.25..1.0
+            const double s = 1.0;
+
             for (int x = 0; x < width; x++)
             {
-                // --- TŁO (BG): mieszanka szachownicy + łagodny gradient po Y ---
-                bool check = (((x >> 3) ^ (y >> 3)) & 1) == 0;  // kwadraty 8x8
-                byte g = (byte)(40 + (y * 215 / Math.Max(1, height - 1))); // 40..255
-                var bg = check ? new Rgb(g, (byte)(g * 0.9), (byte)(g * 0.8))
-                               : new Rgb((byte)(g * 0.8), g, (byte)(g * 0.9));
+                double h = (width <= 1 ? 0.0 : (double)x / (width - 1)) * 360.0; // 0..360
 
-                // --- ZNAK + FG: losowe, ale z lekkim przesunięciem kolorów ---
-                char ch = chars[rnd.Next(chars.Length)];
-                var fg = new Rgb(
-                    (byte)(80 + rnd.Next(150)),     // 80..229
-                    (byte)(80 + rnd.Next(150)),
-                    (byte)(80 + rnd.Next(150)));
+                // Background: full-spectrum gradient
+                var bg = Rgb.FromHsv(h, s, v);
 
-                // delikatny kontrast fg względem bg
-                if (fg.R + fg.G + fg.B < bg.R + bg.G + bg.B)
-                {
-                    // rozjaśnij fg, gdy jest ciemniejszy niż tło
-                    fg = new Rgb(
-                        (byte)Math.Min(255, fg.R + 40),
-                        (byte)Math.Min(255, fg.G + 40),
-                        (byte)Math.Min(255, fg.B + 40));
-                }
+                // Foreground: pick contrasting color (simple luma-based switch)
+                // If background is dark, use bright fg; if bright, use dark fg.
+                int luma = (int)(0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B);
+                var fg = (luma < 140) ? new Rgb(240, 240, 240) : new Rgb(20, 20, 20);
+
+                // Character pattern (deterministic)
+                char ch = chars[(x + y) % chars.Length];
 
                 _cells[x, y] = new Cell(ch, fg, bg);
             }
         }
     }
-
 
     public Cell? GetCell(int x, int y)
     {

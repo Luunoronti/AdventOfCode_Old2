@@ -129,8 +129,7 @@ internal static class Renderer
         DrawTooltipBox(buf, x0, y0, lines, bgAlpha, borderAlpha);
     }
 
-    public static void DrawTooltipBox(CellBuffer buf, int x0, int y0, IReadOnlyList<string> lines,
-                                  byte bgAlpha = 180, byte borderAlpha = 220)
+    public static void DrawTooltipBox(CellBuffer buf, int x0, int y0, IReadOnlyList<string> lines, byte bgAlpha = 180, byte borderAlpha = 220)
     {
         int W = buf.Width, H = buf.Height;
         if (lines == null || lines.Count == 0) return;
@@ -153,6 +152,7 @@ internal static class Renderer
         var fg = new Rgb(245, 245, 245);
 
         bool opaque = (bgAlpha == 255 && borderAlpha == 255);
+        bool opaqueMode = opaque || !buf.AlphaBlendEnabled;
 
         for (int row = 0; row < lines.Count; row++)
         {
@@ -161,7 +161,7 @@ internal static class Renderer
 
             for (int x = 0; x < w; x++)
             {
-                if (opaque)
+                if (opaqueMode)
                 {
                     // pełne nadpisanie — czyścimy znak, ustawiamy tło
                     buf.TrySet(x0 + x, y, new Cell(' ', fg, bg));
@@ -169,12 +169,12 @@ internal static class Renderer
                 else
                 {
                     // półprzezroczysty blend tła
-                    buf.BlendBg(x0 + x, y, bg, bgAlpha);
+                    buf.BlendBgAndFg(x0 + x, y, bg, bgAlpha, bg, bgAlpha);
                 }
             }
 
             // ramka (tylko blend lub pełne nadpisanie, w zależności od trybu)
-            if (opaque)
+            if (opaqueMode)
             {
                 buf.TrySet(x0, y, new Cell(' ', fg, bd));
                 buf.TrySet(x0 + w - 1, y, new Cell(' ', fg, bd));
@@ -190,7 +190,7 @@ internal static class Renderer
             int inner = Math.Max(0, w - padX * 2);
             if (inner > 0 && line.Length > inner) line = line.AsSpan(0, inner).ToString();
 
-            if (opaque)
+            if (opaqueMode)
                 PutText(buf, x0 + padX, y, line, fg, bg); // nadpisanie z tłem
             else
                 PutTextKeepBg(buf, x0 + padX, y, line, fg);

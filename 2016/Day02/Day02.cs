@@ -95,6 +95,20 @@ class Day02
         // Example: Move 'X' across the buffer for 10 seconds
         var world = new DemoWorld(300, 150);
 
+        // Proste okno 30x8 w (5,3), lekko przezroczyste
+        var win = Window.Create(
+            x: 5, y: 3, w: 30, h: 8,
+            bg: new Rgb(15, 15, 20), bgAlpha: 210,
+            border: new Rgb(255, 255, 255), borderAlpha: 200,
+            z: 10,
+            content: (buf, self) =>
+            {
+                // Wypełnij tytuł i kilka linii treści (bez zmiany tła)
+                Renderer.PutTextKeepBg(buf, self.X + 2, self.Y, "[ Demo Window ]", new Rgb(255, 230, 120));
+                Renderer.PutTextKeepBg(buf, self.X + 2, self.Y + 2, "Hello from Window!", new Rgb(240, 240, 240));
+                Renderer.PutTextKeepBg(buf, self.X + 2, self.Y + 3, "Press C to toggle color mode.", new Rgb(200, 220, 255));
+            });
+
         Visualizer.Run(new VizConfig
         {
             ColorMode = ColorMode.TrueColor,
