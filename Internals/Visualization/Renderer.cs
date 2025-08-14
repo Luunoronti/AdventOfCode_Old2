@@ -122,36 +122,89 @@ internal static class Renderer
         }
     }
 
-    public static void DrawTooltipBox(CellBuffer buf, int sx, int sy, string text,
+    public static void DrawTooltipBox(CellBuffer buf, int x0, int y0, string text,
+                                      byte bgAlpha = 180, byte borderAlpha = 220)
+    {
+        var lines = SplitLines(text);
+        DrawTooltipBox(buf, x0, y0, lines, bgAlpha, borderAlpha);
+    }
+
+    public static void DrawTooltipBox(CellBuffer buf, int x0, int y0, IReadOnlyList<string> lines,
                                   byte bgAlpha = 180, byte borderAlpha = 220)
     {
-        // Dopasuj do krawędzi okna
         int W = buf.Width, H = buf.Height;
-        if (string.IsNullOrEmpty(text)) return;
+        if (lines == null || lines.Count == 0) return;
 
-        // granice i pozycja
-        int padX = 1, padY = 0; // cienka ramka
-        int w = Math.Min(text.Length + padX * 2, Math.Max(6, W));
-        int x0 = sx, y0 = sy;
+        const int padX = 1;
+        int maxLineLen = 0;
+        for (int i = 0; i < lines.Count; i++)
+            if (lines[i] != null)
+                maxLineLen = Math.Max(maxLineLen, lines[i].Length);
+
+        int w = Math.Clamp(maxLineLen + padX * 2, 6, W);
+
         if (x0 + w >= W) x0 = Math.Max(0, W - w - 1);
-        if (y0 >= H - 1) y0 = Math.Max(0, H - 2);
+        int h = Math.Min(lines.Count, Math.Max(1, H - 1 - y0));
+        if (h < lines.Count) h = lines.Count;
+        if (y0 + h >= H - 1) y0 = Math.Max(0, (H - 1) - h);
 
-        // kolory
-        var bg = new Rgb(20, 20, 20);      // tło dymka
-        var bd = new Rgb(255, 255, 255);   // border jako lekkie rozjaśnienie
-        var fg = new Rgb(245, 245, 245);   // tekst
+        var bg = new Rgb(20, 20, 20);
+        var bd = new Rgb(255, 255, 255);
+        var fg = new Rgb(245, 245, 245);
 
-        // tło (blend)
-        for (int x = 0; x < w; x++)
-            buf.BlendBg(x0 + x, y0, bg, bgAlpha);
+        bool opaque = (bgAlpha == 255 && borderAlpha == 255);
 
-        // pseudo-border (pojedyncze piksele na końcach dymka – delikatny akcent)
-        buf.BlendBg(x0, y0, bd, borderAlpha);
-        buf.BlendBg(x0 + w - 1, y0, bd, borderAlpha);
+        for (int row = 0; row < lines.Count; row++)
+        {
+            int y = y0 + row;
+            if ((uint)y >= (uint)H) break;
 
-        // tekst (bez ruszania tła)
-        PutTextKeepBg(buf, x0 + padX, y0, Truncate(text, w - padX * 2), fg);
+            for (int x = 0; x < w; x++)
+            {
+                if (opaque)
+                {
+                    // pełne nadpisanie — czyścimy znak, ustawiamy tło
+                    buf.TrySet(x0 + x, y, new Cell(' ', fg, bg));
+                }
+                else
+                {
+                    // półprzezroczysty blend tła
+                    buf.BlendBg(x0 + x, y, bg, bgAlpha);
+                }
+            }
+
+            // ramka (tylko blend lub pełne nadpisanie, w zależności od trybu)
+            if (opaque)
+            {
+                buf.TrySet(x0, y, new Cell(' ', fg, bd));
+                buf.TrySet(x0 + w - 1, y, new Cell(' ', fg, bd));
+            }
+            else
+            {
+                buf.BlendBg(x0, y, bd, borderAlpha);
+                buf.BlendBg(x0 + w - 1, y, bd, borderAlpha);
+            }
+
+            // tekst (bez ruszania tła w trybie blend)
+            string line = lines[row] ?? string.Empty;
+            int inner = Math.Max(0, w - padX * 2);
+            if (inner > 0 && line.Length > inner) line = line.AsSpan(0, inner).ToString();
+
+            if (opaque)
+                PutText(buf, x0 + padX, y, line, fg, bg); // nadpisanie z tłem
+            else
+                PutTextKeepBg(buf, x0 + padX, y, line, fg);
+        }
     }
+
+
+    private static List<string> SplitLines(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return new List<string>();
+        // wspieramy \r\n, \n, \r
+        return new List<string>(s.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'));
+    }
+
 
     private static string Truncate(string s, int len)
         => (len <= 0 || s.Length <= len) ? s : s.AsSpan(0, len).ToString();

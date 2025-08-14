@@ -16,6 +16,7 @@ internal sealed class MainLoop
     private double _accum = 0;
     private InputReader _inputReader;
     private readonly TooltipProvider? _tooltip;
+    private bool _tooltipEnabled = true;
 
     private int _frameCounter = 0;
     private double _fps = 0.0;
@@ -173,6 +174,7 @@ internal sealed class MainLoop
                 else Pan(0, -1);
                 break;
 
+
             case ConsoleKey.Subtract:
             case ConsoleKey.OemMinus:
                 if (ctrl) ZoomAtCursor(1 / 1.25);
@@ -212,6 +214,10 @@ internal sealed class MainLoop
             // Precyzyjna zmiana szybkości:
             case ConsoleKey.Oem4: _cfg.AutoStepPerSecond = Math.Max(0.2, _cfg.AutoStepPerSecond / 1.25); break;
             case ConsoleKey.Oem6: _cfg.AutoStepPerSecond *= 1.25; break;
+
+            case ConsoleKey.T:
+                _tooltipEnabled = !_tooltipEnabled;
+                break;
         }
     }
 
@@ -324,7 +330,7 @@ internal sealed class MainLoop
         // komórka świata pod kursorem (z korektą dla zoom<1)
         var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
 
-        string shortcuts = " Keys: Ctrl+Q quit | =/- zoom | LMB drag pan | Arrows/WASD pan | Space step | 0 reset zoom | F5 all | F6 map | F7 ui | F8 overlays ";
+        string shortcuts = " Keys: Ctrl+Q quit | =/- zoom | LMB drag pan | Arrows/WASD pan | Space step | T Info | 0 reset zoom | F5 all | F6 map | F7 ui | F8 overlays ";
         string autoInfo = _cfg.AutoPlay
             ? $"{_cfg.AutoStepPerSecond:F1}/s  FPS={_fps:F1}"
             : "off";
@@ -337,20 +343,32 @@ internal sealed class MainLoop
 
     private void DrawTooltipIfAny()
     {
+        if (!_tooltipEnabled) return; // <-- nowa linia
         if (_tooltip == null) return;
-        if (!_cfg.Layers.HasFlag(UiLayers.Overlays)) return; // opcjonalnie podpinamy pod warstwę Overlays
+        if (!_cfg.Layers.HasFlag(UiLayers.Overlays)) return;
 
-        // komórka świata pod kursorem (z korektą dla zoom<1)
         var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
         string? text = _tooltip(ix, iy);
         if (string.IsNullOrEmpty(text)) return;
 
-        // pozycja ekranu dla dymka – domyślnie przy kurszorze, z paddingiem
+        // wstępna pozycja przy kurszorze
         int sx = Math.Clamp(_input.MouseX + 2, 0, _t.Width - 1);
-        int sy = Math.Clamp(_input.MouseY + 1, 0, _t.Height - 2); // zostaw miejsce na status
+        int sy = Math.Clamp(_input.MouseY + 1, 0, _t.Height - 2);
 
-        // zrób jednoliniowy tooltip (prosto). Jeśli chcesz wielolinijkowy – łatwo rozszerzyć.
-        Renderer.DrawTooltipBox(_buf, sx, sy, text!);
+        // oszacuj docelową szerokość/wysokość (jak w Renderer.DrawTooltipBox)
+        var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        int maxLen = 0;
+        foreach (var ln in lines) maxLen = Math.Max(maxLen, ln?.Length ?? 0);
+        int w = Math.Clamp(maxLen + 2, 6, _t.Width); // +2 padding
+        int h = Math.Min(lines.Length, Math.Max(1, _t.Height - 1)); // bez statusu
+
+        // jeżeli nie mieści się w prawo – przesuń w lewo
+        if (sx + w >= _t.Width) sx = Math.Max(0, _t.Width - w - 1);
+        // jeżeli nie mieści się w dół (powyżej statusu) – przesuń NAD kursorem
+        if (sy + lines.Length >= _t.Height - 1)
+            sy = Math.Max(0, _input.MouseY - lines.Length - 1);
+
+        Renderer.DrawTooltipBox(_buf, sx, sy, lines, _cfg.TooltipBgAlpha, _cfg.TooltipBorderAlpha);
     }
 
 }

@@ -71,6 +71,7 @@ public sealed class InputReader
                         case 'a': case 'A': _input.EnqueueKey(ConsoleKey.A); break;
                         case 's': case 'S': _input.EnqueueKey(ConsoleKey.S); break;
                         case 'd': case 'D': _input.EnqueueKey(ConsoleKey.D); break;
+                        case 't': case 'T': _input.EnqueueKey(ConsoleKey.T); break;
                         default: break;
                     }
                     continue;

@@ -24,4 +24,8 @@ public record VizConfig
 
 
     public bool ContinuousRenderWhenAutoPlay { get; set; } = true;
+
+    public byte TooltipBgAlpha { get; set; } = 255;   // 0..255 (255 = nieprzezroczysty)
+    public byte TooltipBorderAlpha { get; set; } = 255; // 0..255
+
 }
