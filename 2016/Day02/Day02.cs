@@ -90,7 +90,89 @@ class Map<TType>
 
 class Day02
 {
+    private sealed class FillState
+    {
+        public Queue<(int x, int y)> Q = new();
+        public bool[,] Visited = null!;
+        public int Steps = 0;
+        public int Filled = 0;
+    }
+    private sealed class ArrayWorld : IWorldSource
+    {
+        private readonly Cell[,] _cells;
+        public int Width
+        {
+            get;
+        }
+        public int Height
+        {
+            get;
+        }
+
+        public ArrayWorld(Cell[,] cells)
+        {
+            _cells = cells;
+            Width = cells.GetLength(0);
+            Height = cells.GetLength(1);
+        }
+
+        public Cell? GetCell(int x, int y)
+        {
+            if (x < 0 || y < 0 || x >= Width || y >= Height) return null;
+            return _cells[x, y];
+        }
+
+
+    }
+
+
     public string Part1(PartInput Input)
+    {
+        // Old();
+
+        // 1) Świat 200x200 i labirynt
+        int W = 200, H = 200;
+        var cells = new Cell[W, H];
+        GenerateMaze(cells);
+        var fill = InitFill(cells, W, H, 0, 0);
+        var world = new ArrayWorld(cells);
+
+
+        var win = Window.Create(
+           x: 5, y: 2, w: 26, h: 6,
+           bg: new Rgb(15, 15, 20), bgAlpha: 210,
+           z: 50,
+           content: (buf, self) => DrawFillStatus(buf, self, fill)
+       );
+        var cfg = new VizConfig
+        {
+            ColorMode = ColorMode.TrueColor,
+            TargetFps = 60,
+            AutoPlay = false,            // auto-kroki (1 krok/klatkę; Space też działa)
+            AutoStepPerSecond = 60,     // jeśli masz ten parametr – nie szkodzi nawet jeśli ignorowany
+            Layers = UiLayers.All
+        };
+
+        Visualizer.Run(cfg,
+            frame =>
+            {
+                for (int i = 0; i < 50; i++)
+                    StepFill(cells, fill, W, H);
+                frame.DrawWorld(world);
+            },
+            info: (x, y) =>
+            {
+                if (x < 0 || y < 0 || x >= W || y >= H) return null;
+                var c = world.GetCell(x, y)!.Value;
+                return $"({x},{y}) '{c.Ch}'";
+            });
+
+
+        long response = Input.LineWidth;
+        return response.ToString();
+    }
+
+    void Old()
     {
         // Example: Move 'X' across the buffer for 10 seconds
         var world = new DemoWorld(300, 150);
@@ -114,7 +196,7 @@ class Day02
             ColorMode = ColorMode.TrueColor,
             TargetFps = 60,
             AutoPlay = true,
-            Layers = UiLayers.All 
+            Layers = UiLayers.All
         },
         frame =>
         {
@@ -130,13 +212,118 @@ class Day02
             return @$"Cell=({x},{y})  
 Char='{world.GetCell(x, y)?.Ch}'";
         });
-
-        long response = Input.LineWidth;
-        return response.ToString();
     }
+
+
+
+
+
+
+    private static void SetCell(Cell[,] cells, int x, int y, Cell c)
+    {
+        if (x < 0 || y < 0 || x >= cells.GetLength(0) || y >= cells.GetLength(1)) return;
+        cells[x, y] = c;
+    }
+
+    private static Cell GetCell(Cell[,] cells, int x, int y)
+    {
+        return cells[x, y];
+    }
+
     public string Part2(PartInput Input)
     {
         long response = Input.LineWidth;
         return response.ToString();
     }
+
+    private void DrawFillStatus(CellBuffer buf, Window self, FillState st)
+    {
+        Renderer.PutTextKeepBg(buf, self.X + 2, self.Y, "[ Fill Status ]", new Rgb(255, 230, 120));
+        Renderer.PutTextKeepBg(buf, self.X + 2, self.Y + 2, $"Steps:  {st.Steps}", new Rgb(230, 230, 230));
+        Renderer.PutTextKeepBg(buf, self.X + 2, self.Y + 3, $"Filled: {st.Filled}", new Rgb(230, 230, 230));
+    }
+
+
+    private bool StepFill(Cell[,] cells, FillState st, int w, int h)
+    {
+        if (st.Q.Count == 0) return false; // koniec
+
+        var (x, y) = st.Q.Dequeue();
+        st.Steps++;
+
+        // zaznacz wypełnione pole (delikatny kolor tła + znak kropki)
+        SetCell(cells, x, y, new Cell('·', new Rgb(255, 255, 120), new Rgb(40, 110, 210)));
+        st.Filled++;
+
+        // sąsiedzi 4-kierunkowi, tylko przejścia ' '
+        foreach (var (nx, ny) in new (int, int)[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) })
+        {
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (st.Visited[nx, ny]) continue;
+
+            var c = GetCell(cells, nx, ny);
+            if (c.Ch == ' ' || c.Ch == '·') // korytarz lub już “miękkie” wypełnienie
+            {
+                st.Visited[nx, ny] = true;
+                st.Q.Enqueue((nx, ny));
+            }
+        }
+
+        return st.Q.Count > 0;
+    }
+
+
+    private FillState InitFill(Cell[,] cells, int w, int h, int sx = 0, int sy = 0)
+    {
+        // znajdź najbliższą od (sx,sy) komórkę typu ' ' (korytarz)
+        (int x, int y) start = (sx, sy);
+        bool found = false;
+        for (int y = sy; y < h && !found; y++)
+            for (int x = sx; x < w && !found; x++)
+            {
+                var c = GetCell(cells, x, y);
+                if (c.Ch == ' ') { start = (x, y); found = true; }
+            }
+        if (!found) start = (0, 0);
+
+        var st = new FillState
+        {
+            Visited = new bool[w, h]
+        };
+        st.Q.Enqueue(start);
+        st.Visited[start.x, start.y] = true;
+        return st;
+    }
+
+
+    private void GenerateMaze(Cell[,] cells)
+    {
+        int w = cells.GetLength(0);
+        int h = cells.GetLength(1);
+
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                SetCell(cells, x, y, new Cell('#', new Rgb(90, 90, 90), new Rgb(20, 20, 20)));
+
+        for (int y = 0; y < h; y += 2)
+            for (int x = 0; x < w; x += 2)
+                SetCell(cells, x, y, new Cell(' ', new Rgb(220, 220, 220), new Rgb(15, 15, 18)));
+
+        var rnd = new Random(1);
+        for (int y = 0; y < h; y += 2)
+        {
+            for (int x = 0; x < w; x += 2)
+            {
+                bool canE = (x + 2 < w);
+                bool canS = (y + 2 < h);
+                if (!canE && !canS) continue;
+
+                if (canE && (!canS || rnd.Next(2) == 0))
+                    SetCell(cells, x + 1, y, new Cell(' ', new Rgb(220, 220, 220), new Rgb(15, 15, 18)));
+                else if (canS)
+                    SetCell(cells, x, y + 1, new Cell(' ', new Rgb(220, 220, 220), new Rgb(15, 15, 18)));
+            }
+        }
+    }
+
 }

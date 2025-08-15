@@ -7,4 +7,5 @@ public interface IWorldSource
     int Height { get; }
     // Zwraca “komórkę świata” (znak + kolor). Poza mapą: null → tło.
     Cell? GetCell(int x, int y);
+
 }
