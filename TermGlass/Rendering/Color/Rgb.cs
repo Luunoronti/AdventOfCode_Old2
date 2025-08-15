@@ -1,8 +1,8 @@
 using System;
 
-namespace Visualization;
+namespace TermGlass;
 
-// Prosty helper kolorów TrueColor
+// Simple TrueColor colors helper
 public readonly record struct Rgb(byte R, byte G, byte B)
 {
 
@@ -42,7 +42,7 @@ public readonly record struct Rgb(byte R, byte G, byte B)
             (byte)(a.B + (b.B - a.B) * t));
 
 
-    /// <summary>Najbliższy indeks w palecie ANSI-16 (0..15).</summary>
+    /// <summary>Nearest index in ANSI-16 palette (0..15).</summary>
     public int ToAnsi16Index() => NearestAnsi16Index(this);
 
     // ---------- HSV → RGB ----------
@@ -51,14 +51,14 @@ public readonly record struct Rgb(byte R, byte G, byte B)
         // h∈[0,360), s∈[0,1], v∈[0,1]
         if (s <= 0.0)
         {
-            byte g = (byte)Math.Round(v * 255.0);
+            var g = (byte)Math.Round(v * 255.0);
             return new Rgb(g, g, g);
         }
 
         h = (h % 360.0 + 360.0) % 360.0;
-        double c = v * s;
-        double x = c * (1.0 - Math.Abs((h / 60.0) % 2.0 - 1.0));
-        double m = v - c;
+        var c = v * s;
+        var x = c * (1.0 - Math.Abs(h / 60.0 % 2.0 - 1.0));
+        var m = v - c;
 
         double r1 = 0, g1 = 0, b1 = 0;
         switch ((int)(h / 60.0))
@@ -99,30 +99,30 @@ public readonly record struct Rgb(byte R, byte G, byte B)
         return Ansi16Palette[idx];
     }
 
-    /// <summary>Mapowanie na System.ConsoleColor (używa indeksu ANSI-16).</summary>
+    /// <summary>Mapping to System.ConsoleColor (uses ANSI-16 index).</summary>
     public ConsoleColor ToConsoleColor()
     {
-        // Mapa zgodna z kolejnością Ansi16Palette:
+        // Map consistent with Ansi16Palette order:
         // 0..15 -> Black, DarkRed, DarkGreen, DarkYellow, DarkBlue, DarkMagenta, DarkCyan, Gray,
         //          DarkGray, Red, Green, Yellow, Blue, Magenta, Cyan, White
         return (ConsoleColor)ToAnsi16Index();
     }
 
-    /// <summary>RGB odpowiadający danemu ConsoleColor (dokładne wartości z palety ANSI-16).</summary>
+    /// <summary>RGB corresponding to given ConsoleColor (exact values from ANSI-16 palette).</summary>
     public static Rgb FromConsoleColor(ConsoleColor color)
     {
-        int idx = (int)color;
+        var idx = (int)color;
         if ((uint)idx >= (uint)Ansi16Palette.Length) idx = 0;
         return Ansi16Palette[idx];
     }
 
 
-    // --- Operatory konwersji ---
+    // --- Conversion operators ---
 
-    /// <summary>Jawna konwersja Rgb -> ConsoleColor.</summary>
+    /// <summary>Explicit conversion Rgb -> ConsoleColor.</summary>
     public static explicit operator ConsoleColor(Rgb c) => c.ToConsoleColor();
 
-    /// <summary>Niejawna konwersja ConsoleColor -> Rgb.</summary>
+    /// <summary>Implicit conversion ConsoleColor -> Rgb.</summary>
     public static implicit operator Rgb(ConsoleColor color) => FromConsoleColor(color);
 
 }

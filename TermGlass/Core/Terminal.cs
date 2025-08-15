@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Visualization;
+namespace TermGlass;
 
 public sealed class Terminal : IDisposable
 {
@@ -33,8 +33,8 @@ public sealed class Terminal : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static (int fg, int bg) MapToAnsi16(Rgb fg, Rgb bg)
     {
-        int fi = fg.NearestAnsi16Index();
-        int bi = bg.NearestAnsi16Index();
+        var fi = fg.NearestAnsi16Index();
+        var bi = bg.NearestAnsi16Index();
         return (Ansi16FgCodes[fi], Ansi16BgCodes[bi]);
     }
 
@@ -64,16 +64,16 @@ public sealed class Terminal : IDisposable
 
     public void SetColorMode(ColorMode mode)
     {
-        // zmień tryb rysowania
+        // change drawing mode
         _mode = mode;
-        // zresetuj atrybuty, żeby nie zostały stare kolory
+        // reset attributes so old colors don't remain
         Console.Write("\x1b[0m");
     }
 
     public bool TryRefreshSize()
     {
-        int w = Console.WindowWidth;
-        int h = Console.WindowHeight;
+        var w = Console.WindowWidth;
+        var h = Console.WindowHeight;
         if (w != _width || h != _height)
         {
             _width = w; _height = h;
@@ -82,7 +82,7 @@ public sealed class Terminal : IDisposable
         return false;
     }
 
-    // Tylko klawisze (mysz idzie przez MouseReader na stdin)
+    // Only keys (mouse goes through MouseReader on stdin)
     public bool TryReadKey(InputState input)
     {
         if (!Console.KeyAvailable) return false;
@@ -102,14 +102,14 @@ public sealed class Terminal : IDisposable
 
         if (_mode == ColorMode.TrueColor)
         {
-            // Stan wyjściowy: brak ustawionych kolorów → pierwsza komórka wymusi oba kody
-            Rgb curFg = new Rgb(0, 0, 0);
-            Rgb curBg = new Rgb(0, 0, 0);
-            bool colorInited = false;
+            // Initial state: no colors set → first cell will force both codes
+            var curFg = new Rgb(0, 0, 0);
+            var curBg = new Rgb(0, 0, 0);
+            var colorInited = false;
 
-            for (int y = 0; y < buf.Height; y++)
+            for (var y = 0; y < buf.Height; y++)
             {
-                for (int x = 0; x < buf.Width; x++)
+                for (var x = 0; x < buf.Width; x++)
                 {
                     var c = buf[x, y];
 
@@ -133,10 +133,10 @@ public sealed class Terminal : IDisposable
         }
         else // ColorMode.Console16
         {
-            int curFg = -1, curBg = -1; // „brak koloru”
-            for (int y = 0; y < buf.Height; y++)
+            int curFg = -1, curBg = -1; // "no collour"
+            for (var y = 0; y < buf.Height; y++)
             {
-                for (int x = 0; x < buf.Width; x++)
+                for (var x = 0; x < buf.Width; x++)
                 {
                     var c = buf[x, y];
                     var (fgCode, bgCode) = MapToAnsi16(c.Fg, c.Bg);
@@ -150,7 +150,7 @@ public sealed class Terminal : IDisposable
             }
         }
 
-        // Reset na końcu, żeby nie zostawiać terminala w customowych kolorach
+        // Reset at the end to avoid leaving terminal in custom colors
         _sb.Append("\x1b[0m");
         Console.Write(_sb);
     }
@@ -177,19 +177,19 @@ public sealed class Terminal : IDisposable
 
         try
         {
-            // OUT: włącz VT
+            // OUT: enable VT
             var outH = GetStdHandle(-11); // STD_OUTPUT_HANDLE
-            if (!GetConsoleMode(outH, out uint outMode)) return false;
+            if (!GetConsoleMode(outH, out var outMode)) return false;
             outMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN;
             SetConsoleMode(outH, outMode);
 
-            // IN: przełącz na tryb VT + "raw-ish"
+            // IN: switch to VT mode + "raw-ish"
             var inH = GetStdHandle(-10); // STD_INPUT_HANDLE
-            if (!GetConsoleMode(inH, out uint inMode)) return false;
+            if (!GetConsoleMode(inH, out var inMode)) return false;
 
-            // Żeby wyłączyć QUICK_EDIT, trzeba mieć EXTENDED_FLAGS ustawione.
+            // To disable QUICK_EDIT, EXTENDED_FLAGS must be set.
             inMode |= ENABLE_EXTENDED_FLAGS;
-            // Usuń gotowanie linii/echo/przetwarzanie, dodaj VT input.
+            // Remove line cooking/echo/processing, add VT input.
             inMode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
             inMode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
 
@@ -199,9 +199,9 @@ public sealed class Terminal : IDisposable
         catch { return false; }
     }
 
-    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr GetStdHandle(int nStdHandle);
-    [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
-    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern nint GetStdHandle(int nStdHandle);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetConsoleMode(nint hConsoleHandle, out uint lpMode);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetConsoleMode(nint hConsoleHandle, uint dwMode);
 
     public void Dispose()
     {

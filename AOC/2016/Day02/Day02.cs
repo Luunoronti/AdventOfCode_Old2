@@ -1,5 +1,6 @@
 ﻿
-using Visualization;
+using TermGlass;
+using TermGlass.DemoWorld;
 
 namespace Year2016;
 
@@ -130,7 +131,6 @@ class Day02
     {
         // Old();
 
-        // 1) Świat 200x200 i labirynt
         int W = 200, H = 200;
         var cells = new Cell[W, H];
         GenerateMaze(cells);
@@ -148,8 +148,8 @@ class Day02
         {
             ColorMode = ColorMode.TrueColor,
             TargetFps = 60,
-            AutoPlay = false,            // auto-kroki (1 krok/klatkę; Space też działa)
-            AutoStepPerSecond = 60,     // jeśli masz ten parametr – nie szkodzi nawet jeśli ignorowany
+            AutoPlay = false,
+            AutoStepPerSecond = 60,
             Layers = UiLayers.All
         };
 
@@ -246,23 +246,21 @@ Char='{world.GetCell(x, y)?.Ch}'";
 
     private bool StepFill(Cell[,] cells, FillState st, int w, int h)
     {
-        if (st.Q.Count == 0) return false; // koniec
+        if (st.Q.Count == 0) return false;
 
         var (x, y) = st.Q.Dequeue();
         st.Steps++;
 
-        // zaznacz wypełnione pole (delikatny kolor tła + znak kropki)
         SetCell(cells, x, y, new Cell('·', new Rgb(255, 255, 120), new Rgb(40, 110, 210)));
         st.Filled++;
 
-        // sąsiedzi 4-kierunkowi, tylko przejścia ' '
         foreach (var (nx, ny) in new (int, int)[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) })
         {
             if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
             if (st.Visited[nx, ny]) continue;
 
             var c = GetCell(cells, nx, ny);
-            if (c.Ch == ' ' || c.Ch == '·') // korytarz lub już “miękkie” wypełnienie
+            if (c.Ch == ' ' || c.Ch == '·')
             {
                 st.Visited[nx, ny] = true;
                 st.Q.Enqueue((nx, ny));

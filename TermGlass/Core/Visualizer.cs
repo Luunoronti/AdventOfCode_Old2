@@ -1,4 +1,4 @@
-namespace Visualization;
+namespace TermGlass;
 
 
 public static class Visualizer

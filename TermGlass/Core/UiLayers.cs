@@ -1,4 +1,4 @@
-namespace Visualization;
+namespace TermGlass;
 
 // =================== Public API ===================
 

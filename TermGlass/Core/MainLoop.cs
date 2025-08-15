@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Visualization;
+namespace TermGlass;
 
 // =================== Core loop & rendering ===================
 
@@ -16,7 +16,7 @@ internal sealed class MainLoop
     private readonly InputState _input = new();
     private readonly Stopwatch _sw = new();
     private double _accum = 0;
-    private InputReader _inputReader;
+    private InputReader? _inputReader;
     private readonly TooltipProvider? _tooltip;
     private bool _tooltipEnabled = true;
 
@@ -42,14 +42,16 @@ internal sealed class MainLoop
         _t.EnableMouse(true);
         _t.Clear();
 
-        _vp.CenterOn(0, 0);
+        //_vp.CenterOn(0, 0);
+        // Start with world origin (0,0) aligned to the map's top-left (accounting for rulers)
         _vp.SetZoom(1.0);
+        _vp.Offset(-_vp.OffsetX, -_vp.OffsetY);
 
         _inputReader = new InputReader(_input);
         _inputReader.Start();
 
         _sw.Start();
-        bool running = true;
+        var running = true;
 
         while (running)
         {
@@ -58,17 +60,17 @@ internal sealed class MainLoop
                 _buf.Resize(_t.Width, _t.Height);
                 _t.Clear();
                 _t.EnableMouse(true);
-                _input.OnResize();          // ustawia _dragLastX/Y = MouseX/Y
-                _inputReader?.RequestReset(); // zrywa ewentualną niedomkniętą sekwencję ESC
+                _input.OnResize();          // sets _dragLastX/Y = MouseX/Y
+                _inputReader?.RequestReset(); // breaks any unclosed ESC sequence
                 _input.Dirty = true;
 
-                // przytnij wszystkie okna do nowego rozmiaru ekranu
+                // trim all windows to new screen size
                 foreach (var w in Window.All())
                     ;
             }
 
-            // ODBIÓR KLAWISZY — limit na ramkę:
-            int consumed = 0;
+            // KEY INPUT — limit per frame:
+            var consumed = 0;
             while (consumed < MaxKeyEventsPerFrame && _input.TryDequeueKey(out var ke))
             {
                 consumed++;
@@ -80,7 +82,7 @@ internal sealed class MainLoop
                 HandleKeys();
             }
 
-            // MYSZ (drag/wheel) — jeśli coś zrobiło zmianę, _input.Dirty już = true
+            // MOUSE (drag/wheel) — if something changed, _input.Dirty is already = true
             HandleMouse();
 
             if (Window.HandleMouse(_input, _t.Width, _t.Height))
@@ -88,18 +90,18 @@ internal sealed class MainLoop
                 _input.Dirty = true;
             }
 
-            // Jeśli chcemy „ciągły render” przy AutoPlay – wymuś Dirty co iterację:
+            // If we want "continuous render" with AutoPlay – force Dirty each iteration:
             if (_cfg.AutoPlay && _cfg.ContinuousRenderWhenAutoPlay)
             {
                 _input.Dirty = true;
             }
 
-            // Autoplay (może ustawić StepRequested, a przez to też zbrudzić)
+            // Autoplay (may set StepRequested, and through that also dirty)
             if (_cfg.AutoPlay)
             {
                 _accum += _sw.Elapsed.TotalSeconds;
                 _sw.Restart();
-                double stepEvery = 1.0 / Math.Max(0.0001, _cfg.AutoStepPerSecond);
+                var stepEvery = 1.0 / Math.Max(0.0001, _cfg.AutoStepPerSecond);
                 while (_accum >= stepEvery)
                 {
                     _accum -= stepEvery;
@@ -112,12 +114,12 @@ internal sealed class MainLoop
                 _sw.Restart();
             }
 
-            // RENDER TYLKO GDY DIRTY lub po resize
+            // RENDER ONLY WHEN DIRTY or after resize
             if (_input.Dirty)
             {
                 _input.Dirty = false;
 
-                _buf.AlphaBlendEnabled = (_cfg.ColorMode == ColorMode.TrueColor);
+                _buf.AlphaBlendEnabled = _cfg.ColorMode == ColorMode.TrueColor;
 
                 _buf.Fill(new Cell(' ', Rgb.White, Rgb.Black));
 
@@ -126,17 +128,17 @@ internal sealed class MainLoop
 
                 if (_cfg.Layers.HasFlag(UiLayers.Rulers)) DrawRulers();
 
-                // okna – na wierzchu nad treścią i rulerami
+                // windows – on top above content and rulers
                 Window.DrawAll(_buf);
 
-                // === TOOLTIP (nad wszystkim oprócz status bara) ===
-                DrawTooltipIfAny();
+                // === TOOLTIP (above everything except status bar) ===
+                DrawTooltipIfAny(frame);
 
-                if (_cfg.Layers.HasFlag(UiLayers.StatusBar)) DrawStatusBar();
+                if (_cfg.Layers.HasFlag(UiLayers.StatusBar)) DrawStatusBar(frame);
 
                 _t.Draw(_buf);
 
-                // FPS liczymy tylko gdy AutoPlay jest aktywny
+                // FPS counting only when AutoPlay is active
                 if (_cfg.AutoPlay)
                 {
                     _frameCounter++;
@@ -155,14 +157,14 @@ internal sealed class MainLoop
             }
             else
             {
-                // nic się nie zmieniło → mikro-drzemka
+                // nothing changed → micro-sleep
                 Thread.Sleep(1);
             }
 
-            // FPS throttle (opcjonalny — ale zostawmy, by nie grzać CPU)
+            // FPS throttle (optional — but let's keep it to avoid heating CPU)
             if (_cfg.TargetFps > 0)
             {
-                int targetMs = 1000 / _cfg.TargetFps;
+                var targetMs = 1000 / _cfg.TargetFps;
                 Thread.Sleep(Math.Max(0, targetMs - (int)_sw.ElapsedMilliseconds));
             }
         }
@@ -173,12 +175,12 @@ internal sealed class MainLoop
         _t.ExitAltScreen();
     }
 
-    // =================== Sterowanie klawiaturą ===================
+    // =================== Keyboard control ===================
 
     private void HandleKeys()
     {
         var k = _input.LastKey;
-        bool ctrl = _input.Ctrl;
+        var ctrl = _input.Ctrl;
 
         switch (k)
         {
@@ -214,27 +216,27 @@ internal sealed class MainLoop
                 _input.Dirty = true;
                 break;
 
-            case ConsoleKey.D0: // reset zoomu do 1.0 wokół środka ekranu
+            case ConsoleKey.D0: // reset zoom to 1.0 around screen center
                 {
-                    int sx = _t.Width / 2;
-                    int sy = _t.Height / 2;
+                    var sx = _t.Width / 2;
+                    var sy = _t.Height / 2;
                     _vp.ResetZoomAroundScreenPoint(sx, sy, 1.0);
                     _input.Dirty = true;
                     break;
                 }
 
-            // Autoplay szybko:
+            // Fast autoplay:
             case ConsoleKey.D1: _cfg.AutoPlay = false; break;
             case ConsoleKey.D2: _cfg.AutoPlay = true; _cfg.AutoStepPerSecond = 5; break;
             case ConsoleKey.D3: _cfg.AutoPlay = true; _cfg.AutoStepPerSecond = 30; break;
 
-            // PRESETY WARSTW (F5–F8):
-            case ConsoleKey.F5: _cfg.Layers = UiLayers.All; break;                    // wszystko
-            case ConsoleKey.F6: _cfg.Layers = UiLayers.Map; break;                    // tylko mapa
-            case ConsoleKey.F7: _cfg.Layers = UiLayers.Rulers | UiLayers.StatusBar; break; // tylko UI bez mapy
+            // LAYER PRESETS (F5–F8):
+            case ConsoleKey.F5: _cfg.Layers = UiLayers.All; break;                    // everything
+            case ConsoleKey.F6: _cfg.Layers = UiLayers.Map; break;                    // map only
+            case ConsoleKey.F7: _cfg.Layers = UiLayers.Rulers | UiLayers.StatusBar; break; // UI only without map
             case ConsoleKey.F8: _cfg.Layers ^= UiLayers.Overlays; break;              // toggle overlays
 
-            // Precyzyjna zmiana szybkości:
+            // Precise speed change:
             case ConsoleKey.Oem4: _cfg.AutoStepPerSecond = Math.Max(0.2, _cfg.AutoStepPerSecond / 1.25); break;
             case ConsoleKey.Oem6: _cfg.AutoStepPerSecond *= 1.25; break;
 
@@ -244,33 +246,33 @@ internal sealed class MainLoop
 
             case ConsoleKey.C:
                 {
-                    // przełącz
+                    // toggle
                     _cfg.ColorMode = _cfg.ColorMode == ColorMode.TrueColor ? ColorMode.Console16 : ColorMode.TrueColor;
 
-                    // poinformuj Terminal i wyczyść ekran, żeby nie zostały stare atrybuty
+                    // inform Terminal and clear screen so old attributes don't remain
                     _t.SetColorMode(_cfg.ColorMode);
                     _t.Clear();
 
-                    _input.Dirty = true; // wymuś pełny redraw
+                    _input.Dirty = true; // force full redraw
                     break;
                 }
 
         }
     }
 
-    // =================== Obsługa myszy ===================
+    // =================== Mouse handling ===================
 
     private void HandleMouse()
     {
-        int wheel = _input.ConsumeWheel();
+        var wheel = _input.ConsumeWheel();
         if (wheel != 0)
         {
-            double factor = Math.Pow(1.1, wheel);
+            var factor = Math.Pow(1.1, wheel);
             ZoomAtCursor(factor);
             _input.Dirty = true;
         }
 
-        // jeśli przeciągamy okno – nie pan’ujemy sceny
+        // if we're dragging a window – don't pan the scene
         if (Window.IsDragging)
         {
             return;
@@ -279,7 +281,7 @@ internal sealed class MainLoop
         if (_input.MouseLeftDragging || _input.MouseRightDragging)
         {
             var (dx, dy) = _input.ConsumeDragDelta();
-            double mul = _cfg.PanSpeed / _vp.Zoom;   // zawsze proporcjonalnie do zoomu
+            var mul = _cfg.PanSpeed / _vp.Zoom;   // always proportional to zoom
             if (dx != 0 || dy != 0)
             {
                 _vp.Offset(-dx * mul, -dy * mul);
@@ -290,8 +292,8 @@ internal sealed class MainLoop
 
     private void ZoomAtCursor(double factor)
     {
-        int sx = _input.MouseX.Clamp(0, _t.Width - 1);
-        int sy = _input.MouseY.Clamp(0, _t.Height - 1);
+        var sx = _input.MouseX.Clamp(0, _t.Width - 1);
+        var sy = _input.MouseY.Clamp(0, _t.Height - 1);
         var (wx, wy) = _vp.ScreenToWorld(sx, sy);
         _vp.ZoomAround(wx, wy, factor, minZoom: 0.1, maxZoom: 40.0);
     }
@@ -299,8 +301,11 @@ internal sealed class MainLoop
     private void Pan(int dx, int dy)
     {
         var (wWorld, hWorld) = _vp.VisibleWorldSize();
-        double stepX = wWorld * _cfg.PanKeyStepFrac;
-        double stepY = hWorld * _cfg.PanKeyStepFrac;
+        var stepX = wWorld * _cfg.PanKeyStepFrac;
+        var stepY = hWorld * _cfg.PanKeyStepFrac;
+        // Ensure keyboard pan always moves by at least 1 world cell and in integer steps
+        //stepX = Math.Max(1.0, Math.Floor(stepX));
+        //stepY = Math.Max(1.0, Math.Floor(stepY));
         _vp.Offset(dx * stepX, dy * stepY);
         _input.Dirty = true;
     }
@@ -313,14 +318,14 @@ internal sealed class MainLoop
         if (W < 10 || H < 5) return;
 
         var bg = _cfg.RulerBgColor;
-        byte a = _cfg.RulerBgAlpha;
-        int lw = Math.Max(1, _cfg.LeftRulerWidth);
+        var a = _cfg.RulerBgAlpha;
+        var lw = Math.Max(1, _cfg.LeftRulerWidth);
 
-        bool opaqueMode = !_buf.AlphaBlendEnabled ? true : false;
+        var opaqueMode = !_buf.AlphaBlendEnabled ? true : false;
 
-        // 1) Półprzezroczyste tło całego ruler’a
-        // top (y=0) — cała szerokość
-        for (int x = 0; x < W; x++)
+        // 1) Semi-transparent background of entire ruler
+        // top (y=0) — full width
+        for (var x = 0; x < W; x++)
         {
             if (opaqueMode)
                 _buf.TrySet(x, 0, new Cell(' ', Rgb.White, bg)); // clear char, solid bg
@@ -329,10 +334,10 @@ internal sealed class MainLoop
         }
 
 
-        // left (x=0..lw-1) — cała wysokość
-        for (int x = 0; x < Math.Min(lw, W); x++)
+        // left (x=0..lw-1) — full height
+        for (var x = 0; x < Math.Min(lw, W); x++)
         {
-            for (int y = 0; y < H; y++)
+            for (var y = 0; y < H; y++)
             {
                 if (opaqueMode)
                     _buf.TrySet(x, y, new Cell(' ', Rgb.White, bg));
@@ -341,34 +346,34 @@ internal sealed class MainLoop
             }
         }
 
-        // 2) Napisy (bez zmiany tła!)
-        // top ruler: co ~10 kolumn wypisz współrzędną świata w tej kolumnie
-        for (int sx = lw; sx < W; sx++)
+        // 2) Labels (without changing background!)
+        // top ruler: every ~10 columns print world coordinate in that column
+        for (var sx = lw; sx < W; sx++)
         {
             var (wx, _) = _vp.ScreenToWorld(sx, 1);
             if (sx % 10 == 0)
             {
-                var label = ((int)Math.Round(wx)).ToString();
+                var label = ((int)Math.Round(wx, MidpointRounding.AwayFromZero)).ToString();
                 Renderer.PutTextKeepBg(_buf, sx, 0, label, Rgb.White);
             }
         }
 
-        // left ruler: co 2 wiersze 3-znakowa etykieta
-        for (int sy = 1; sy < H - 1; sy++)
+        // left ruler: every 2 rows 3-character label
+        for (var sy = 1; sy < H - 1; sy++)
         {
             var (_, wy) = _vp.ScreenToWorld(lw, sy);
             if (sy % 2 == 0)
             {
-                var s = ((int)Math.Round(wy)).ToString();
+                var s = ((int)Math.Round(wy, MidpointRounding.AwayFromZero)).ToString();
                 s = s.Length <= 3 ? s.PadLeft(3) : s[^3..];
                 Renderer.PutTextKeepBg(_buf, 0, sy, s, Rgb.White);
             }
         }
 
-        // 3) Highlight pozycji myszy (półprzezroczysty) – cienkie linie jak wcześniej
-        int msx = _input.MouseX.Clamp(0, W - 1);
-        int msy = _input.MouseY.Clamp(0, H - 1);
-        byte ha = _cfg.RulerHighlightAlpha;
+        // 3) Mouse position highlight (semi-transparent) – thin lines as before
+        var msx = _input.MouseX.Clamp(0, W - 1);
+        var msy = _input.MouseY.Clamp(0, H - 1);
+        var ha = _cfg.RulerHighlightAlpha;
         var hi = new Rgb(80, 140, 240);
 
         if (opaqueMode)
@@ -382,35 +387,43 @@ internal sealed class MainLoop
             _buf.BlendBgAndFg(0, msy, hi, ha, hi, ha);
         }
     }
-    private void DrawStatusBar()
+    private void DrawStatusBar(Frame frame)
     {
         int W = _t.Width, H = _t.Height;
         if (W < 10 || H < 3) return;
 
-        for (int x = 0; x < W; x++)
+        for (var x = 0; x < W; x++)
             _buf.Set(x, H - 1, new Cell(' ', Rgb.Black, Rgb.Gray));
 
-        // komórka świata pod kursorem (z korektą dla zoom<1)
-        var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
-        string autoInfo = _cfg.AutoPlay ? $"{_cfg.AutoStepPerSecond:F1}/s | FPS {_fps:F1}" : "off";
+        // world cell under cursor (report only when cursor is inside map area)
+        var insideMap = _input.MouseX >= _cfg.LeftRulerWidth && _input.MouseX < W && _input.MouseY >= 1 && _input.MouseY < H - 1;
+        var (ix, iy) = insideMap ? _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY) : (int.MinValue, int.MinValue);
+        var autoInfo = _cfg.AutoPlay ? $"{_cfg.AutoStepPerSecond:F1}/s | FPS {_fps:F1}" : "off";
 
-        // <<< nowa linia statusu
-        string info = $" {_cfg.ColorMode} | {_cfg.Layers} | Zoom {_vp.Zoom:F2} | Auto {autoInfo} | Cell {ix}, {iy}";
-        string status = $"F1 Help | {info}".PadRight(W);
+        // <<< new status line
+        var cellInfo = insideMap ? $"Cell {ix}, {iy}" : "Cell -";
+        var info = $" {_cfg.ColorMode} | {_cfg.Layers} | Zoom {_vp.Zoom:F2} | Auto {autoInfo} | {cellInfo}";
+        var status = $"F1 Help | {info}".PadRight(W);
+
 
         Renderer.PutText(_buf, 0, H - 1, status[..Math.Min(W, status.Length)], Rgb.Black, Rgb.Gray);
+
+        var statusTextFromFrame = frame?.StatusText;
+        if (!string.IsNullOrEmpty(statusTextFromFrame))
+            Renderer.PutText(_buf, W - statusTextFromFrame.Length - 1, H - 1, 
+                statusTextFromFrame[..Math.Min(W, statusTextFromFrame.Length)], Rgb.Black, Rgb.Gray);
     }
 
 
-    private void DrawTooltipIfAny()
+    private void DrawTooltipIfAny(Frame frame)
     {
-        if (!_tooltipEnabled) return; // <-- nowa linia
-        if (_tooltip == null) return;
+        if (!_tooltipEnabled) return; // <-- new line
+        if (_tooltip == null && frame?.TooltipProvider == null) return;
         if (!_cfg.Layers.HasFlag(UiLayers.Overlays)) return;
 
         var (wx, wy) = _vp.ScreenToWorld(_input.MouseX, _input.MouseY);
         // Skip tooltip if cursor is over a window
-        bool overWindow = Window.All().Any(w =>
+        var overWindow = Window.All().Any(w =>
             w.Visible &&
             _input.MouseX >= w.X &&
             _input.MouseX < w.X + w.W &&
@@ -423,24 +436,28 @@ internal sealed class MainLoop
         }
 
 
+        // Only show tooltip when mouse is inside the drawable map area
+        var W = _t.Width; var H = _t.Height;
+        var insideMap = _input.MouseX >= _cfg.LeftRulerWidth && _input.MouseX < W && _input.MouseY >= 1 && _input.MouseY < H - 1;
+        if (!insideMap) return;
         var (ix, iy) = _vp.WorldCellUnderScreen(_input.MouseX, _input.MouseY);
-        string? text = _tooltip(ix, iy);
+        var text = frame?.TooltipProvider?.Invoke(ix, iy) ?? _tooltip?.Invoke(ix, iy);
         if (string.IsNullOrEmpty(text)) return;
 
-        // wstępna pozycja przy kurszorze
-        int sx = Math.Clamp(_input.MouseX + 2, 0, _t.Width - 1);
-        int sy = Math.Clamp(_input.MouseY + 1, 0, _t.Height - 2);
+        // initial position near cursor
+        var sx = Math.Clamp(_input.MouseX + 2, 0, _t.Width - 1);
+        var sy = Math.Clamp(_input.MouseY + 1, 0, _t.Height - 2);
 
-        // oszacuj docelową szerokość/wysokość (jak w Renderer.DrawTooltipBox)
+        // estimate target width/height (like in Renderer.DrawTooltipBox)
         var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-        int maxLen = 0;
+        var maxLen = 0;
         foreach (var ln in lines) maxLen = Math.Max(maxLen, ln?.Length ?? 0);
-        int w = Math.Clamp(maxLen + 2, 6, _t.Width); // +2 padding
-        int h = Math.Min(lines.Length, Math.Max(1, _t.Height - 1)); // bez statusu
+        var w = Math.Clamp(maxLen + 2, 6, _t.Width); // +2 padding
+        var h = Math.Min(lines.Length, Math.Max(1, _t.Height - 1)); // without status
 
-        // jeżeli nie mieści się w prawo – przesuń w lewo
+        // if it doesn't fit to the right – move to the left
         if (sx + w >= _t.Width) sx = Math.Max(0, _t.Width - w - 1);
-        // jeżeli nie mieści się w dół (powyżej statusu) – przesuń NAD kursorem
+        // if it doesn't fit down (above status) – move ABOVE cursor
         if (sy + lines.Length >= _t.Height - 1)
             sy = Math.Max(0, _input.MouseY - lines.Length - 1);
 
@@ -453,11 +470,11 @@ internal sealed class MainLoop
     {
         if (_helpWin == null)
         {
-            // rozmiar i pozycja (wyśrodkuj)
-            int w = Math.Min(64, _t.Width - 6);
-            int h = Math.Min(18, _t.Height - 6);
-            int x = (_t.Width - w) / 2;
-            int y = (_t.Height - h) / 2;
+            // size and position (center)
+            var w = Math.Min(64, _t.Width - 6);
+            var h = Math.Min(18, _t.Height - 6);
+            var x = (_t.Width - w) / 2;
+            var y = (_t.Height - h) / 2;
 
             _helpWin = Window.Create(
                 x: x, y: y, w: w, h: h,
@@ -465,13 +482,13 @@ internal sealed class MainLoop
                 z: 100,
                 content: (buf, self) =>
                 {
-                    // tytuł
+                    // title
                     Renderer.PutTextKeepBg(buf, self.X + 2, self.Y, "[ Help ]", new Rgb(255, 230, 120));
 
                     int ln = self.Y + 2;
                     int lx = self.X + 2;
 
-                    // lista skrótów
+                    // shortcuts list
                     void L(string s) { Renderer.PutTextKeepBg(buf, lx, ln++, s, new Rgb(230, 230, 230)); }
 
                     L("Esc/Ctrl+Q : quit");
@@ -484,7 +501,7 @@ internal sealed class MainLoop
                     L("C           : toggle color mode (TrueColor/16)");
                     L("T           : toggle tooltip");
 
-                    // mała podpowiedź
+                    // small hint
                     ln++;
                     Renderer.PutTextKeepBg(buf, lx, ln, "Press F1 to hide this window.", new Rgb(200, 220, 255));
                 }
@@ -493,12 +510,12 @@ internal sealed class MainLoop
             _helpWin.ShowCloseButton = true;
             _helpWin.OnClose = w =>
             {
-                // po zamknięciu wyczyść referencję i odrysuj
+                // after closing clear reference and redraw
                 _helpWin = null;
                 _input.Dirty = true;
             };
 
-            // (opcjonalnie) wyróżnij aktywną ramkę:
+            // (optionally) highlight active frame:
             _helpWin.BorderColorActive = new Rgb(255, 200, 80);
 
         }

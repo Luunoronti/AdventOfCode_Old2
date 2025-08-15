@@ -3,7 +3,7 @@ name: Bathroom Security
 year: 2016
 day: 02
 run: true
-debugRun: true
+debugRun: false
 visualization: false
 runLive: true
 runTests: true

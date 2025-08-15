@@ -1,37 +1,58 @@
 using System.Collections.Concurrent;
-using Visualization;
 
-namespace Visualization;
+namespace TermGlass;
 
 // =================== Input: stan + parser myszy (SGR 1006) ===================
 
 public sealed class InputState
 {
-    // klawisze
-    public ConsoleKey LastKey { get; set; }
-    public bool Ctrl { get; set; }
-    public bool Shift { get; set; }
-    public bool Alt { get; set; }
-    public bool Esc { get; set; }
-    public volatile bool Dirty; // sygnał: coś się zmieniło → klatka do narysowania
+    // keys
+    public ConsoleKey LastKey
+    {
+        get; set;
+    }
+    public bool Ctrl
+    {
+        get; set;
+    }
+    public bool Shift
+    {
+        get; set;
+    }
+    public bool Alt
+    {
+        get; set;
+    }
+    public bool Esc
+    {
+        get; set;
+    }
+    public volatile bool Dirty; // signal: something changed → frame to draw
 
-    // mysz (SGR)
+    // mouse (SGR)
     private readonly object _lock = new();
     public int MouseX { get; private set; } = 10; // 0-based
     public int MouseY { get; private set; } = 5;
-    private int _prevX, _prevY;
-    private bool _moved;
-    private int _wheel; // akumulator (ujemny/ dodatni)
-    public bool MouseLeftDown { get; private set; }
-    public bool MouseRightDown { get; private set; }
+    private int _wheel; // accumulator (negative/positive)
+    public bool MouseLeftDown
+    {
+        get; private set;
+    }
+    public bool MouseRightDown
+    {
+        get; private set;
+    }
     public bool MouseLeftDragging => _dragLeft;
     public bool MouseRightDragging => _dragRight;
 
     private int _dragLastX, _dragLastY;
     private bool _dragLeft, _dragRight;
 
-    // pętla krokowa
-    public bool StepRequested { get; set; }
+    // step loop
+    public bool StepRequested
+    {
+        get; set;
+    }
 
     public void OnResize()
     {
@@ -55,27 +76,27 @@ public sealed class InputState
     }
 
 
-    // wywoływane przez MouseReader (wątek)
+    // called by MouseReader (thread)
     public void UpdateMouse(int x1Based, int y1Based, int btnCode, bool press, bool motion, bool wheel, bool ctrl, bool shift, bool alt)
     {
         lock (_lock)
         {
-            int x = Math.Max(0, x1Based - 1);
-            int y = Math.Max(0, y1Based - 1);
+            var x = Math.Max(0, x1Based - 1);
+            var y = Math.Max(0, y1Based - 1);
 
-            // Zawsze aktualizuj pozycję i brudź klatkę
+            // Always update position and dirty the frame
             MouseX = x;
             MouseY = y;
             Dirty = true;
 
-            if (wheel) return; // kółko obsługujemy osobno (AddWheel)
+            if (wheel) return; // wheel handled separately (AddWheel)
 
-            int baseBtn = btnCode & 0b11; // 0=L, 1=M, 2=R
+            var baseBtn = btnCode & 0b11; // 0=L, 1=M, 2=R
 
             if (motion)
             {
-                // Ruch: NIE zmieniaj stanów przycisków ani baseline drag.
-                // Delta zostanie policzona względem _dragLastX/_dragLastY w ConsumeDragDelta().
+                // Motion: DON'T change button states or drag baseline.
+                // Delta will be calculated relative to _dragLastX/_dragLastY in ConsumeDragDelta().
                 return;
             }
 
@@ -92,14 +113,16 @@ public sealed class InputState
             }
         }
     }
-    public void ConsumedMouseMove() { lock (_lock) _moved = false; }
+    public void ConsumedMouseMove()
+    {
+    }
 
     public (int dx, int dy) ConsumeDragDelta()
     {
         lock (_lock)
         {
-            int dx = MouseX - _dragLastX;
-            int dy = MouseY - _dragLastY;
+            var dx = MouseX - _dragLastX;
+            var dy = MouseY - _dragLastY;
             _dragLastX = MouseX;
             _dragLastY = MouseY;
             return (dx, dy);
@@ -110,7 +133,7 @@ public sealed class InputState
     {
         lock (_lock)
         {
-            int v = _wheel; _wheel = 0;
+            var v = _wheel; _wheel = 0;
             return v;
         }
     }

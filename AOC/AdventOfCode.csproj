@@ -24,7 +24,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\Visualize\Visualize.csproj" />
+	  <ProjectReference Include="..\TermGlass\TermGlass.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
