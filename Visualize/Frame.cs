@@ -6,10 +6,10 @@ public sealed class Frame
     private readonly Terminal _t;
     private readonly Viewport _vp;
     private readonly CellBuffer _buf;
-    internal readonly InputState Input;
-    internal readonly VizConfig Cfg;
+    public readonly InputState Input;
+    public readonly VizConfig Cfg;
 
-    internal Frame(Terminal t, Viewport vp, CellBuffer buf, InputState input, VizConfig cfg)
+    public Frame(Terminal t, Viewport vp, CellBuffer buf, InputState input, VizConfig cfg)
     {
         _t = t; _vp = vp; _buf = buf; Input = input; Cfg = cfg;
     }

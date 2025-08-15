@@ -2,7 +2,7 @@ namespace Visualization;
 
 // =================== Viewport & math ===================
 
-internal sealed class Viewport
+public sealed class Viewport
 {
     // Świat → Ekran: sx = 4 + (wx - OriginX) * Zoom
     // sy = 1 + (wy - OriginY) * Zoom

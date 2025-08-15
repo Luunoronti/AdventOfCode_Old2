@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Visualization;
 
-internal sealed class Terminal : IDisposable
+public sealed class Terminal : IDisposable
 {
     const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
     const uint DISABLE_NEWLINE_AUTO_RETURN = 0x0008;

@@ -2,7 +2,7 @@ namespace Visualization;
 
 // =================== Rendering helpers ===================
 
-internal static class Renderer
+public static class Renderer
 {
     public static void DrawWorld(CellBuffer buf, Viewport vp, IWorldSource world, bool enabled)
     {
