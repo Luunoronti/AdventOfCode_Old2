@@ -22,6 +22,15 @@ public class Traveller
     public Location StartLocation { get; set; }
     public CardinalDirection StartDirection { get; set; }
 
+    public long TotalStepsTaken
+    {
+        get; set;
+    }
+    public long AttemptedStepsTaken
+    {
+        get; set;
+    }
+
     public bool StoreVisitedLocations { get; set; }
 
     public Dictionary<Location, int> VisitedLocations { get; } = [];
@@ -40,6 +49,8 @@ public class Traveller
         if (!StoreVisitedLocations && CanStepPred == null && TookStepPred == null)
         {
             Location += CardinalDirection.Direction * steps;
+            TotalStepsTaken = steps;
+            AttemptedStepsTaken = steps;
             return WalkResult.Completed;
         }
 
@@ -51,12 +62,15 @@ public class Traveller
 
             var p = CanStepPred?.Invoke(this) ?? StepPred.Continue;
             if (p == StepPred.Cancel) return WalkResult.Cancelled;
+
+            AttemptedStepsTaken += 1;
             if (p == StepPred.TryAgain)
             {
                 --s;
                 continue;
             }
 
+            TotalStepsTaken += 1;
             Location += dir;
 
             if (StoreVisitedLocations)

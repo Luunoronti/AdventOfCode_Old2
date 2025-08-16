@@ -1,3 +1,4 @@
+
 namespace TermGlass;
 
 // Drawing in world vs. screen coordinates
@@ -9,19 +10,19 @@ public sealed class Frame
     public readonly InputState Input;
     public readonly VizConfig Cfg;
 
+    // Optional: host/AoC can set these; MainLoop will pick them up each frame
+    public string? StatusText
+    {
+        get; set;
+    }
+    public TooltipProvider? TooltipProvider
+    {
+        get; set;
+    }
+
     public Frame(Terminal t, Viewport vp, CellBuffer buf, InputState input, VizConfig cfg)
     {
         _t = t; _vp = vp; _buf = buf; Input = input; Cfg = cfg;
-    }
-
-
-    public string StatusText
-    {
-        get; set;
-    }
-    public Func<int, int, string?> TooltipProvider
-    {
-        get; set;
     }
 
     // Transformations
@@ -38,7 +39,6 @@ public sealed class Frame
             {
                 var (wx, wy) = _vp.ScreenToWorld(sx, sy);
 
-                // if the world has boundaries – safely clamp / check
                 if (wx < 0 || wy < 0 || wx >= world.Width || wy >= world.Height)
                     continue;
 
@@ -48,7 +48,7 @@ public sealed class Frame
         }
     }
 
-    // (Overlays) — we leave the interface for drawing from the outside
+    // (Overlays)
     public void DrawRectWorld(double x, double y, double w, double h, char ch, Rgb fg, Rgb bg)
         => Renderer.DrawRectWorld(_buf, _vp, x, y, w, h, ch, fg, bg, Cfg.Layers.HasFlag(UiLayers.Overlays));
 

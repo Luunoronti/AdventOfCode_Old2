@@ -86,7 +86,7 @@ internal sealed class InputReader
                     // --- MOUSE SGR 1006: ESC [ < b ; x ; y (M|m) ---
                     if (IsMouseSeqComplete(esc, out var press))
                     {
-                        ParseMouseSGR(esc.ToString(), press); // NIE enqueue’ujemy kluczy dla wheel/motion
+                        ParseMouseSGR(esc.ToString(), press);
                         inEsc = false; esc.Clear();
                         continue;
                     }

@@ -24,18 +24,20 @@ public static class Renderer
     {
         if (worldPerPixel <= 1.0)
         {
-            var x = (int)Math.Round(wx, MidpointRounding.AwayFromZero);
-            var y = (int)Math.Round(wy, MidpointRounding.AwayFromZero);
+            var x = (int)Math.Round(wx);
+            var y = (int)Math.Round(wy);
             var c = world.GetCell(x, y);
             return c ?? new Cell(' ', Rgb.White, Rgb.Black);
         }
         else
         {
+            // Downsample: average 2x2 neighborhood; pick mode character; average BOTH fg and bg
             var step = Math.Max(1.0, worldPerPixel * 0.8);
             var x0 = (int)Math.Floor(wx - step * 0.5);
             var y0 = (int)Math.Floor(wy - step * 0.5);
 
-            var acc = new (int r, int g, int b, char ch, int n)[4];
+            int fr = 0, fg = 0, fb = 0, br = 0, bg = 0, bb = 0, n = 0;
+            var chars = new char[4];
             var count = 0;
 
             for (var dy = 0; dy < 2; dy++)
@@ -44,23 +46,24 @@ public static class Renderer
                     var c = world.GetCell(x0 + dx, y0 + dy);
                     if (c.HasValue)
                     {
-                        acc[count].r = c.Value.Fg.R;
-                        acc[count].g = c.Value.Fg.G;
-                        acc[count].b = c.Value.Fg.B;
-                        acc[count].ch = c.Value.Ch;
-                        acc[count].n = 1;
+                        var v = c.Value;
+                        fr += v.Fg.R; fg += v.Fg.G; fb += v.Fg.B;
+                        br += v.Bg.R; bg += v.Bg.G; bb += v.Bg.B;
+                        chars[count++] = v.Ch;
+                        n++;
                     }
-                    else acc[count].ch = ' ';
-                    count++;
+                    else
+                    {
+                        chars[count++] = ' ';
+                    }
                 }
 
-            // character: most frequent (mode)
-            var mode = ModeChar(new[] { acc[0].ch, acc[1].ch, acc[2].ch, acc[3].ch });
-            var (R, G, B) = (acc[0].r + acc[1].r + acc[2].r + acc[3].r,
-                             acc[0].g + acc[1].g + acc[2].g + acc[3].g,
-                             acc[0].b + acc[1].b + acc[2].b + acc[3].b);
-            var fg = new Rgb((byte)(R / 4), (byte)(G / 4), (byte)(B / 4));
-            return new Cell(mode, fg, Rgb.Black);
+            if (n == 0) return new Cell(' ', Rgb.White, Rgb.Black);
+
+            var ch = ModeChar(chars);
+            var avgFg = new Rgb((byte)(fr / n), (byte)(fg / n), (byte)(fb / n));
+            var avgBg = new Rgb((byte)(br / n), (byte)(bg / n), (byte)(bb / n));
+            return new Cell(ch, avgFg, avgBg);
         }
     }
 
@@ -77,9 +80,9 @@ public static class Renderer
     {
         if (!enabled) return;
         var (sx0, sy0) = vp.WorldToScreen(x, y);
-        var (sx1, sy1) = vp.WorldToScreen(x + w-1, y + h-1);
-        int x0 = Math.Min(sx0, sx1), x1 = Math.Max(sx0, sx1);
-        int y0 = Math.Min(sy0, sy1), y1 = Math.Max(sy0, sy1);
+        var (sx1, sy1) = vp.WorldToScreen(x + w, y + h);
+        int x0 = Math.Min(sx0, sx1 - 1), x1 = Math.Max(sx0, sx1 - 1);
+        int y0 = Math.Min(sy0, sy1 - 1), y1 = Math.Max(sy0, sy1 - 1);
         for (var sy = y0; sy <= y1; sy++)
             for (var sx = x0; sx <= x1; sx++)
                 buf.TrySet(sx, sy, new Cell(ch, fg, bg));
@@ -89,7 +92,7 @@ public static class Renderer
     {
         if (!enabled) return;
         var (scx, scy) = vp.WorldToScreen(cx, cy);
-        var rr = (int)Math.Round(r * vp.Zoom, MidpointRounding.AwayFromZero);
+        var rr = (int)Math.Round(r * vp.Zoom);
         for (var sy = scy - rr; sy <= scy + rr; sy++)
             for (var sx = scx - rr; sx <= scx + rr; sx++)
             {
@@ -135,7 +138,7 @@ public static class Renderer
         int W = buf.Width, H = buf.Height;
         if (lines == null || lines.Count == 0) return;
 
-        const int padX = 1;
+        const int padX = 2;
         var maxLineLen = 0;
         for (var i = 0; i < lines.Count; i++)
             if (lines[i] != null)
@@ -155,59 +158,45 @@ public static class Renderer
         var opaque = bgAlpha == 255 && borderAlpha == 255;
         var opaqueMode = opaque || !buf.AlphaBlendEnabled;
 
-        for (var row = 0; row < lines.Count; row++)
+
+        FrameDrawer.DrawSingleFrame(x0, y0, x0 + w, y0 + h + 1, buf, bd, borderAlpha, bg, 255, false);
+
+        for (var row = 1; row <= lines.Count; row++)
         {
             var y = y0 + row;
             if ((uint)y >= (uint)H) break;
 
-            for (var x = 0; x < w; x++)
+            for (var x = 1; x < w; x++)
             {
                 if (opaqueMode)
                 {
-                    // full overwrite — clear character, set background
                     buf.TrySet(x0 + x, y, new Cell(' ', fg, bg));
                 }
                 else
                 {
-                    // semi-transparent background blend
                     buf.BlendBgAndFg(x0 + x, y, bg, bgAlpha, bg, bgAlpha);
                 }
             }
 
-            // border (only blend or full overwrite, depending on mode)
-            if (opaqueMode)
-            {
-                buf.TrySet(x0, y, new Cell(' ', fg, bd));
-                buf.TrySet(x0 + w - 1, y, new Cell(' ', fg, bd));
-            }
-            else
-            {
-                buf.BlendBg(x0, y, bd, borderAlpha);
-                buf.BlendBg(x0 + w - 1, y, bd, borderAlpha);
-            }
-
-            // text (without touching background in blend mode)
-            var line = lines[row] ?? string.Empty;
+            // text
+            var line = lines[row - 1] ?? string.Empty;
             var inner = Math.Max(0, w - padX * 2);
             if (inner > 0 && line.Length > inner) line = line.AsSpan(0, inner).ToString();
 
             if (opaqueMode)
-                PutText(buf, x0 + padX, y, line, fg, bg); // overwrite with background
+                PutText(buf, x0 + padX, y, line, fg, bg);
             else
                 PutTextKeepBg(buf, x0 + padX, y, line, fg);
         }
     }
 
-
     private static List<string> SplitLines(string s)
     {
         if (string.IsNullOrEmpty(s)) return new List<string>();
-        // \r\n, \n, \r support
+        // support \r\n, \n, \r
         return new List<string>(s.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'));
     }
 
-
     private static string Truncate(string s, int len)
         => len <= 0 || s.Length <= len ? s : s.AsSpan(0, len).ToString();
-
 }

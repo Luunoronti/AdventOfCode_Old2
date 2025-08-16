@@ -127,6 +127,10 @@ class Day01
                 // Draw origin for reference
                 frame.DrawRectWorld(0, 0, 1, 1, 'X', new Rgb(200, 80, 80), new Rgb(30, 30, 30));
 
+
+                // distance and steps taken on status bar
+                frame.StatusText = $"Steps: {traveller.TotalStepsTaken}, Instr: {instrIndex}/{tokens.Length}, Steps left in current instr: {stepsLeftInInstr}";
+
                 // Optionally: final answer on completion
                 if (done)
                 {

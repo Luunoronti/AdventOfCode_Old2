@@ -2,8 +2,67 @@
 
 namespace TermGlass;
 
+public static class FrameDrawer
+{
+    // border characters (single line)
+    public const char tl = '┌', tr = '┐', bl = '└', br = '┘', hz = '─', vt = '│';
+
+
+    public static void PutBorderFg(int x, int y, char ch, CellBuffer buf, Rgb BorderColor, int BorderAlpha, Rgb BackgroundColor, int BgAlpha, bool BlendBackground)
+    {
+        if (x >= buf.Width || y >= buf.Height) return;
+
+        var opaque = BgAlpha == 255 && BorderAlpha == 255;
+        // Force opaque if blending is disabled (Console16)
+        var opaqueMode = opaque || !buf.AlphaBlendEnabled;
+        if (opaqueMode)
+        {
+            // background has been set to BgColor in step 1, but set explicitly for consistency
+            buf.TrySet(x, y, new Cell(ch, BorderColor, BackgroundColor));
+        }
+        else
+        {
+            // do NOT blend background with border color — keep background from step 1 (blended BgColor)
+            if (BlendBackground)
+            {
+                buf.BlendCell(x, y, new Cell(ch, BorderColor, BackgroundColor), (byte)BorderAlpha, (byte)BgAlpha, replaceChar: true);   
+            }
+            else
+            {
+                buf.TrySet(x, y, new Cell(ch, BorderColor, buf[x, y].Bg));
+            }
+        }
+    }
+
+    public static void DrawSingleFrame(int x0, int y0, int x1, int y1, CellBuffer buf, Rgb BorderColor, int BorderAlpha, Rgb BackgroundColor, int BgAlpha, bool BlendBackground)
+    {
+        // corners
+        PutBorderFg(x0, y0, tl, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+        PutBorderFg(x1, y0, tr, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+        PutBorderFg(x0, y1, bl, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+        PutBorderFg(x1, y1, br, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+
+        // horizontal edges
+        for (var x = x0 + 1; x < x1; x++)
+        {
+            PutBorderFg(x, y0, hz, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+            PutBorderFg(x, y1, hz, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+        }
+        // vertical edges
+        for (var y = y0 + 1; y < y1; y++)
+        {
+            PutBorderFg(x0, y, vt, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+            PutBorderFg(x1, y, vt, buf, BorderColor, BorderAlpha, BackgroundColor, BgAlpha, BlendBackground);
+        }
+    }
+
+
+}
 public sealed class Window
 {
+
+
+
     // ---- instance properties ----
     public int X
     {
@@ -193,45 +252,7 @@ public sealed class Window
         //    BORDER — FG = border color, BG: if opaque = BgColor, if transparent = unchanged
         var borderCol = this == s_active ? BorderColorActive : BorderColor;
 
-        // helper: set border glyph with fg=borderCol; keep background (transparent) or set BG to BgColor (opaque)
-        void PutBorderFg(int x, int y, char ch)
-        {
-            if ((uint)x >= (uint)Wb || (uint)y >= (uint)Hb) return;
-
-            if (opaqueMode)
-            {
-                // background has been set to BgColor in step 1, but set explicitly for consistency
-                buf.TrySet(x, y, new Cell(ch, borderCol, BgColor));
-            }
-            else
-            {
-                // do NOT blend background with border color — keep background from step 1 (blended BgColor)
-                var cur = buf[x, y];
-                buf.TrySet(x, y, new Cell(ch, borderCol, cur.Bg));
-            }
-        }
-
-        // border characters (single line)
-        char tl = '┌', tr = '┐', bl = '└', br = '┘', hz = '─', vt = '│';
-
-        // corners
-        PutBorderFg(x0, y0, tl);
-        PutBorderFg(x1, y0, tr);
-        PutBorderFg(x0, y1, bl);
-        PutBorderFg(x1, y1, br);
-
-        // horizontal edges
-        for (var x = x0 + 1; x < x1; x++)
-        {
-            PutBorderFg(x, y0, hz);
-            PutBorderFg(x, y1, hz);
-        }
-        // vertical edges
-        for (var y = y0 + 1; y < y1; y++)
-        {
-            PutBorderFg(x0, y, vt);
-            PutBorderFg(x1, y, vt);
-        }
+        FrameDrawer.DrawSingleFrame(x0, y0, x1, y1, buf, borderCol, BorderAlpha, BgColor, BgAlpha, false);
 
         // [X] in the top-right corner (if enabled and there is room)
         var span = CloseButtonSpan();
@@ -240,9 +261,9 @@ public sealed class Window
             var cx0 = span.Value.x0; // '['
             var cx1 = span.Value.x1; // ']'
             // "[X]" — fg = border color, background as above (opaque = BgColor, transparent = unchanged)
-            PutBorderFg(cx0, Y, '[');
-            PutBorderFg(cx0 + 1, Y, 'X');
-            PutBorderFg(cx1, Y, ']');
+            FrameDrawer.PutBorderFg(cx0, Y, '[', buf, borderCol, BorderAlpha, BgColor, BgAlpha, false);
+            FrameDrawer.PutBorderFg(cx0 + 1, Y, 'X', buf, borderCol, BorderAlpha, BgColor, BgAlpha, false);
+            FrameDrawer.PutBorderFg(cx1, Y, ']', buf, borderCol, BorderAlpha, BgColor, BgAlpha, false);
         }
 
 
