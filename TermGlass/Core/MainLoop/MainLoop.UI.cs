@@ -11,54 +11,72 @@ internal sealed partial class MainLoop
         var bg = _cfg.RulerBgColor;
         var a = _cfg.RulerBgAlpha;
         var lw = Math.Max(1, _cfg.LeftRulerWidth);
+        bool opaqueMode = !_buf.AlphaBlendEnabled;
+        const double Eps = 1e-9;
 
-        var opaqueMode = !_buf.AlphaBlendEnabled;
-
-        // background of rulers
-        for (var x = 0; x < W; x++)
+        // --- backgrounds for both rulers ---
+        // top (y=0)
+        for (int x = 0; x < W; x++)
         {
-            if (opaqueMode)
-                _buf.TrySet(x, 0, new Cell(' ', Rgb.White, bg));
-            else
-                _buf.BlendBgAndFg(x, 0, bg, a, bg, a);
+            if (opaqueMode) _buf.TrySet(x, 0, new Cell(' ', Rgb.White, bg));
+            else _buf.BlendBgAndFg(x, 0, bg, a, bg, a);
         }
-
-        for (var x = 0; x < Math.Min(lw, W); x++)
+        // left (x=0..lw-1)
+        for (int x = 0; x < Math.Min(lw, W); x++)
         {
-            for (var y = 0; y < H; y++)
+            for (int y = 0; y < H; y++)
             {
-                if (opaqueMode)
-                    _buf.TrySet(x, y, new Cell(' ', Rgb.White, bg));
-                else
-                    _buf.BlendBgAndFg(x, y, bg, a, bg, a);
+                if (opaqueMode) _buf.TrySet(x, y, new Cell(' ', Rgb.White, bg));
+                else _buf.BlendBgAndFg(x, y, bg, a, bg, a);
             }
         }
 
-        // labels
-        for (var sx = lw; sx < W; sx++)
+        // --- label anchoring at world origin (0,0) ---
+        // Find the screen column/row where the LEFT/TOP edge of tile 0 starts.
+        // This keeps the "0" tick aligned to the true world origin for any zoom/pan.
+        int sxZero = (int)Math.Ceiling(4 + (-_vp.OffsetX) * _vp.Zoom - Eps);
+        int syZero = (int)Math.Ceiling(1 + (-_vp.OffsetY) * _vp.Zoom - Eps);
+
+        // Label density in screen pixels (same look as before)
+        const int stepX = 10; // every ~10 columns on the top ruler
+        const int stepY = 2;  // every 2 rows on the left ruler
+
+        // --- top ruler: labels to the right of world 0 ---
+        for (int sx = sxZero; sx < W; sx += stepX)
+        {
+            if (sx < lw) continue; // keep clear of the left gutter
+            var (wx, _) = _vp.ScreenToWorld(sx, 1);
+            var label = ((int)Math.Floor(wx + Eps)).ToString(); // tile rule: [i, i+1)
+            Renderer.PutTextKeepBg(_buf, sx, 0, label, Rgb.White);
+        }
+        // --- top ruler: labels to the left of world 0 ---
+        for (int sx = sxZero - stepX; sx >= lw; sx -= stepX)
         {
             var (wx, _) = _vp.ScreenToWorld(sx, 1);
-            if (sx % 10 == 0)
-            {
-                var label = ((int)Math.Round(wx)).ToString();
-                Renderer.PutTextKeepBg(_buf, sx, 0, label, Rgb.White);
-            }
+            var label = ((int)Math.Floor(wx + Eps)).ToString();
+            Renderer.PutTextKeepBg(_buf, sx, 0, label, Rgb.White);
         }
 
-        for (var sy = 1; sy < H - 1; sy++)
+        // --- left ruler: labels down from world 0 ---
+        for (int sy = syZero; sy < H - 1; sy += stepY)
         {
             var (_, wy) = _vp.ScreenToWorld(lw, sy);
-            if (sy % 2 == 0)
-            {
-                var s = ((int)Math.Round(wy)).ToString();
-                s = s.Length <= 3 ? s.PadLeft(3) : s[^3..];
-                Renderer.PutTextKeepBg(_buf, 0, sy, s, Rgb.White);
-            }
+            var s = ((int)Math.Floor(wy + Eps)).ToString();
+            s = s.Length <= 3 ? s.PadLeft(3) : s[^3..]; // 3-wide, right-aligned
+            Renderer.PutTextKeepBg(_buf, 0, sy, s, Rgb.White);
+        }
+        // --- left ruler: labels up from world 0 ---
+        for (int sy = syZero - stepY; sy >= 1; sy -= stepY)
+        {
+            var (_, wy) = _vp.ScreenToWorld(lw, sy);
+            var s = ((int)Math.Floor(wy + Eps)).ToString();
+            s = s.Length <= 3 ? s.PadLeft(3) : s[^3..];
+            Renderer.PutTextKeepBg(_buf, 0, sy, s, Rgb.White);
         }
 
-        // mouse highlight on rulers
-        var msx = _input.MouseX.Clamp(0, W - 1);
-        var msy = _input.MouseY.Clamp(0, H - 1);
+        // --- mouse highlight on rulers ---
+        int msx = _input.MouseX.Clamp(0, W - 1);
+        int msy = _input.MouseY.Clamp(0, H - 1);
         var ha = _cfg.RulerHighlightAlpha;
         var hi = new Rgb(80, 140, 240);
 

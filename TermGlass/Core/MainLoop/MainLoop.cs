@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace TermGlass;
 
@@ -43,8 +43,23 @@ internal sealed partial class MainLoop
         _t.EnableMouse(true);
         _t.Clear();
 
-        _vp.CenterOn(0, 0);
         _vp.SetZoom(1.0);
+
+        if (_cfg.CenterAtZero)
+        {
+            // classic behavior: place world (0,0) at screen center
+            _vp.CenterOn(0, 0);
+        }
+        else
+        {
+            // map world (0,0) to the top-left MAP cell (just right/below rulers)
+            // Viewport uses +4 (x) and +1 (y) internally, so compensate with LeftRulerWidth
+            var lw = Math.Max(1, _cfg.LeftRulerWidth);
+            var targetOriginX = 4 - lw; // ensures WorldToScreen(0,*) → sx = lw
+            var targetOriginY = 0.0;    // ensures WorldToScreen(*,0) → sy = 1
+            _vp.Offset(targetOriginX - _vp.OffsetX, targetOriginY - _vp.OffsetY);
+        }
+
 
         _inputReader = new InputReader(_input);
         _inputReader.Start();

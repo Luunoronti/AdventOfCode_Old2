@@ -24,8 +24,9 @@ public static class Renderer
     {
         if (worldPerPixel <= 1.0)
         {
-            var x = (int)Math.Round(wx);
-            var y = (int)Math.Round(wy);
+            const double eps = 1e-9;
+            var x = (int)Math.Floor(wx + eps);
+            var y = (int)Math.Floor(wy + eps);
             var c = world.GetCell(x, y);
             return c ?? new Cell(' ', Rgb.White, Rgb.Black);
         }

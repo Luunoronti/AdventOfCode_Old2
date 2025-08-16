@@ -26,13 +26,14 @@ public sealed class Viewport : IViewport
 
         if (Zoom >= 1.0)
         {
-            return ((int)Math.Round(wx, MidpointRounding.AwayFromZero), (int)Math.Round(wy, MidpointRounding.AwayFromZero));
+            const double eps = 1e-9;
+            return ((int)Math.Floor(wx + eps), (int)Math.Floor(wy + eps));
+            //return ((int)Math.Round(wx, MidpointRounding.AwayFromZero), (int)Math.Round(wy, MidpointRounding.AwayFromZero));
         }
         else
         {
 
-            var block = 1.0 / Zoom; // how many world cells per 1 terminal character
-                                    // top-left "corner" of the represented block around the pixel center
+            var block = 1.0 / Zoom;
             var ix = (int)Math.Floor(wx - block * 0.5);
             var iy = (int)Math.Floor(wy - block * 0.5);
             return (ix, iy);

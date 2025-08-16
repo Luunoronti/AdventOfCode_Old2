@@ -28,5 +28,6 @@ public record VizConfig
 
     public byte TooltipBgAlpha { get; set; } = 255;   // 0..255 (255 = opaque)
     public byte TooltipBorderAlpha { get; set; } = 255; // 0..255
+    public bool CenterAtZero { get; set; } = false;
 
 }
