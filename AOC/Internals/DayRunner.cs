@@ -56,6 +56,8 @@ static class DayRunner
                 if (Handler == null)
                     continue;
 
+                Console.Title = $"Advent of Code by Amarthdae | Year {Config.Year} | Day {Config.Day} | Part {PartConfig.Part} | {(RunTests ? "Tests" : "Live")}";
+
                 // attempt to load source as a file
                 // if it fails, attempt to load in place
                 if (!LoadSourceFromFile(test.Source, out var output))
