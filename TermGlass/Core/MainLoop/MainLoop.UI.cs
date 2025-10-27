@@ -121,7 +121,7 @@ internal sealed partial class MainLoop
     private void DrawTooltipIfAny()
     {
         if (!_tooltipEnabled) return;
-        var provider = _tooltipFromFrame ?? _tooltip;
+        var provider = _tooltip;
         if (provider == null) return;
         if (!_cfg.Layers.HasFlag(UiLayers.Overlays)) return;
 

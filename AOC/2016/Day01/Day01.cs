@@ -4,69 +4,29 @@ namespace Year2016;
 
 class Day01
 {
-    public string Part1(PartInput Input)
-    {
-        Traveller traveller = new(CardinalDirection.North) { };
-        foreach (var part in Input.FullString.SplitTrim(','))
-        {
-            traveller.CardinalDirection = part[0] switch 
-            {
-                'R' => traveller.CardinalDirection.Right,
-                'L' => traveller.CardinalDirection.Left,
-                _ => traveller.CardinalDirection,
-            };
+    Traveller traveller;
+    string[] tokens;
+    int instrIndex;
+    int stepsLeftInInstr;
 
-            if (int.TryParse(part[1..], out var steps))
-                traveller.Walk(steps, null);
-        }
-        return traveller.Location.ManhattanDistance(new(0, 0)).ToString();
+    /** For visualization */
+    string Tooltip(int x, int y) => $"Dist from start: {traveller.StartLocation.ManhattanDistance(new(x, y))} \nDist from trav:  {traveller.Location.ManhattanDistance(new(x, y))}";
+    string Status() => $"Steps: {traveller.TotalStepsTaken} | Distance: {traveller.Location.ManhattanDistance(new(0, 0))} | Instr: {instrIndex}/{tokens.Length} | Steps left: {stepsLeftInInstr}";
+    void Draw(Frame frame, bool completed)
+    {
+        frame.Draw(traveller);
+        if (completed)
+            frame.Draw(4, 2, $"Done. Manhattan distance: {traveller.Location.ManhattanDistance(new(0, 0))}", Rgb.Black, Rgb.Yellow);
     }
-    public string Part2(PartInput Input)
+    /** For visualization */
+
+    // This is called every step from Vis
+    bool Process(bool part2)
     {
-        Part2_Viz(Input);
-
-        Traveller traveller = new(CardinalDirection.North) { StoreVisitedLocations = true };
-        foreach (var part in Input.FullString.SplitTrim(','))
+        if (stepsLeftInInstr <= 0)
         {
-            traveller.CardinalDirection = part[0] switch
-            {
-                'R' => traveller.CardinalDirection.Right,
-                'L' => traveller.CardinalDirection.Left,
-                _ => traveller.CardinalDirection,
-            };
+            if (instrIndex >= tokens.Length) return false;
 
-            if (!int.TryParse(part[1..], out var steps))
-                break;
-
-            if (traveller.Walk(steps, null, (t) => t.GetVisitedCount(t.Location) <= 1) == WalkResult.Cancelled)
-                break;
-        }
-
-        return traveller.Location.ManhattanDistance(new(0, 0)).ToString();
-    }
-
-
-
-
-    // Interactive visualization for Part2 (you can do the same for Part1)
-    public string Part2_Viz(PartInput input)
-    {
-        // Parse input once
-        var tokens = input.FullString.Split(',').Select(s => s.Trim()).ToArray();
-
-        // Traveller from your lib
-        var traveller = new Traveller(CardinalDirection.North) { StoreVisitedLocations = true };
-
-        // State for stepping
-        int instrIndex = 0;
-        int stepsLeftInInstr = 0;
-        HashSet<(int x, int y)> visited = new() { (0, 0) };
-        bool done = false;
-
-        // Parse current instruction (turn + total steps)
-        void LoadNextInstruction()
-        {
-            if (instrIndex >= tokens.Length) { done = true; return; }
             var part = tokens[instrIndex++];
             traveller.CardinalDirection = part[0] switch
             {
@@ -76,78 +36,39 @@ class Day01
             };
             stepsLeftInInstr = int.TryParse(part[1..], out var s) ? s : 0;
         }
-        LoadNextInstruction();
 
-        // Run visualizer until finished
-        Visualizer.Run(
-            new VizConfig
-            {
-                ColorMode = ColorMode.TrueColor,
-                Layers = UiLayers.All,
-                AutoPlay = false,            // press Space to step; set true for autoplay
-                AutoStepPerSecond = 10.0,    // if you toggle autoplay (1/2/3 keys)
-            },
-            draw: frame =>
-            {
-                // Advance one step when requested
-                if (!done && (frame.Input.StepRequested || frame.Cfg.AutoPlay))
-                {
-                    if (stepsLeftInInstr <= 0)
-                        LoadNextInstruction();
+        if (stepsLeftInInstr > 0)
+        {
+            // Walk exactly one step
+            var result = traveller.Walk(1, null, t => t.GetVisitedCount(t.Location) <= 1);
+            stepsLeftInInstr--;
 
-                    if (!done && stepsLeftInInstr > 0)
-                    {
-                        // Walk exactly one step; stop early if revisiting for Part2 semantics
-                        var result = traveller.Walk(
-                            1,
-                            null,
-                            t => t.GetVisitedCount(t.Location) <= 1
-                        );
-                        stepsLeftInInstr--;
+            // Stop early if revisiting for Part2 semantics
+            if (part2 && result == WalkResult.Cancelled) return false;
+        }
+        return true;
+    }
 
-                        visited.Add(((int)traveller.Location.X, (int)traveller.Location.Y));
+    // parts
+    public string Part1(PartInput Input)
+    {
+        tokens = [.. Input.FullString.Split(',').Select(s => s.Trim())];
+        instrIndex = 0;
+        stepsLeftInInstr = 0;
+        traveller = new Traveller(CardinalDirection.North) { };
 
-                        if (result == WalkResult.Cancelled)
-                            done = true;
-                        else if (stepsLeftInInstr == 0 && instrIndex >= tokens.Length)
-                            done = true;
+        Visualizer.Run(new VizConfig { AutoPlay = false, CenterAtZero = true }, () => Process(false), Draw, Tooltip, Status);
+        return traveller.Location.ManhattanDistance(new(0, 0)).ToString();
+    }
+    public string Part2(PartInput Input)
+    {
+        tokens = [.. Input.FullString.Split(',').Select(s => s.Trim())];
+        instrIndex = 0;
+        stepsLeftInInstr = 0;
+        traveller = new Traveller(CardinalDirection.North) { StoreVisitedLocations = true };
 
-                        // Force redraw (MainLoop also handles dirty, this helps responsiveness)
-                        frame.Input.Dirty = true;
-                    }
-                }
+        Visualizer.Run(new VizConfig { AutoPlay = false, CenterAtZero = true }, () => Process(true), Draw, Tooltip, Status);
 
-                // Draw visited cells as overlays (sparse map)
-                foreach (var (x, y) in visited)
-                    frame.DrawRectWorld(x, y, 1, 1, '.', new Rgb(230, 230, 230), new Rgb(40, 40, 40));
-
-                // Draw current traveller position
-                frame.DrawRectWorld(traveller.Location.X, traveller.Location.Y, 1, 1, '@', new Rgb(255, 230, 120), new Rgb(60, 60, 60));
-
-                // Draw origin for reference
-                frame.DrawRectWorld(0, 0, 1, 1, 'X', new Rgb(200, 80, 80), new Rgb(30, 30, 30));
-
-
-                // distance and steps taken on status bar
-                frame.StatusText = $"Steps: {traveller.TotalStepsTaken}, Instr: {instrIndex}/{tokens.Length}, Steps left in current instr: {stepsLeftInInstr}";
-
-                // Optionally: final answer on completion
-                if (done)
-                {
-                    var dist = traveller.Location.ManhattanDistance(new(0, 0));
-                    frame.DrawTextScreen(4, 2, $"Done. Manhattan distance: {dist}", Rgb.Black, Rgb.Yellow);
-                }
-            },
-            info: (ix, iy) =>
-            {
-                // Tooltip near cursor (index is world cell)
-                var dist = Math.Abs(traveller.Location.X) + Math.Abs(traveller.Location.Y);
-                var hereVisited = visited.Contains((ix, iy));
-                return $"({ix},{iy})\nVisited: {hereVisited}\nTraveller: ({traveller.Location.X},{traveller.Location.Y})\nDist: {dist}";
-            }
-        );
-
-        // Return final answer (driver reflection can treat this like Part2)
         return traveller.Location.ManhattanDistance(new(0, 0)).ToString();
     }
 }

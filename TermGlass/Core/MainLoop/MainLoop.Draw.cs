@@ -3,7 +3,7 @@
 
 internal sealed partial class MainLoop
 {
-    private void Draw()
+    private void Draw(bool completed)
     {
         _input.Dirty = false;
 
@@ -11,9 +11,8 @@ internal sealed partial class MainLoop
         _buf.Fill(new Cell(' ', Rgb.White, Rgb.Black));
 
         var frame = new Frame(_t, _vp, _buf, _input, _cfg);
-        _draw(frame);
-        _statusFromFrame = frame.StatusText;
-        _tooltipFromFrame = frame.TooltipProvider;
+        _draw(frame, completed);
+        _statusFromFrame = _status?.Invoke() ?? "";
 
         if (_cfg.Layers.HasFlag(UiLayers.Rulers)) DrawRulers();
 

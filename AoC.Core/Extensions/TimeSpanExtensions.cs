@@ -2,7 +2,7 @@
 // most of functionality is in Core and Extensions folder
 
 
-static class TimeSpanExtensions
+public static class TimeSpanExtensions
 {
     public static string FormatUltraPrecise(this TimeSpan timeSpan)
     {

@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Net.NetworkInformation;
 
 namespace TermGlass;
 
@@ -8,7 +9,9 @@ internal sealed partial class MainLoop
 
     private readonly Terminal _t;
     private readonly VizConfig _cfg;
-    private readonly Action<Frame> _draw;
+    private readonly Action<Frame, bool> _draw;
+    private readonly Func<bool> _process;
+    private readonly Func<string>? _status;
     private readonly Viewport _vp;
     private readonly CellBuffer _buf;
     private readonly InputState _input = new();
@@ -19,18 +22,24 @@ internal sealed partial class MainLoop
     private bool _tooltipEnabled = true;
 
     private string? _statusFromFrame;
-    private TooltipProvider? _tooltipFromFrame;
+    //private TooltipProvider? _tooltipFromFrame;
 
+    private bool processContinue = false;
     private int _frameCounter = 0;
     private double _fps = 0.0;
     private DateTime _fpsLastTime = DateTime.UtcNow;
 
     private Window? _helpWin;
 
-    public MainLoop(Terminal t, VizConfig cfg, Action<Frame> draw, TooltipProvider? tooltip = null)
+    public MainLoop(Terminal t, VizConfig cfg, Func<bool> process, Action<Frame, bool> draw, TooltipProvider? tooltip = null, Func<string>? status = null)
     {
-        _t = t; _cfg = cfg; _draw = draw;
+        _t = t;
+        _cfg = cfg;
+        _draw = draw;
+        _process = process;
         _tooltip = tooltip;
+        _status = status;
+        processContinue = true;
         _vp = new Viewport();
         _buf = new CellBuffer(_t.Width, _t.Height);
         _vp.AttachTerminal(_t);
@@ -85,6 +94,11 @@ internal sealed partial class MainLoop
                 _input.Dirty = true;
             }
 
+            // need to check space from input
+            // and check for timer here
+            bool processThisFrame = _input.StepRequested;
+            _input.StepRequested = false;
+
             // Autoplay
             if (_cfg.AutoPlay)
             {
@@ -94,8 +108,7 @@ internal sealed partial class MainLoop
                 while (_accum >= stepEvery)
                 {
                     _accum -= stepEvery;
-                    _input.StepRequested = true;
-                    _input.Dirty = true;
+                    processThisFrame = true;
                 }
             }
             else
@@ -103,11 +116,16 @@ internal sealed partial class MainLoop
                 _sw.Restart();
             }
 
-            // Render only when dirty
-            if (_input.Dirty)
+            // Process and render only when dirty
+            if (_input.Dirty || processThisFrame)
             {
-                Draw();
-                _input.StepRequested = false;
+                if( processThisFrame)
+                {
+                    if (processContinue)
+                        processContinue = _process();
+                }
+
+                Draw(!processContinue);
                 _input.ConsumedMouseMove();
             }
             else

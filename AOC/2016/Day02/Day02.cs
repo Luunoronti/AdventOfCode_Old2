@@ -1,6 +1,7 @@
 ﻿
 using TermGlass;
 using TermGlass.DemoWorld;
+using Windows.Media.Streaming.Adaptive;
 
 namespace Year2016;
 
@@ -154,10 +155,14 @@ class Day02
         };
 
         Visualizer.Run(cfg,
-            frame =>
+            process: () =>
             {
                 for (int i = 0; i < 50; i++)
                     StepFill(cells, fill, W, H);
+                return true;
+            },
+            (frame, completed) =>
+            {
                 frame.DrawWorld(world);
             },
             info: (x, y) =>
@@ -198,7 +203,11 @@ class Day02
             AutoPlay = true,
             Layers = UiLayers.All
         },
-        frame =>
+        process: () => 
+        {
+            return true;
+        },
+        (frame, completed) =>
         {
             frame.DrawWorld(world);
 

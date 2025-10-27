@@ -35,6 +35,8 @@ public class Traveller
 
     public Dictionary<Location, int> VisitedLocations { get; } = [];
 
+    public Dictionary<Location, int> VisitedLocationsForVisOnly { get; } = [];
+
     public int GetVisitedCount(Location location) => VisitedLocations.TryGetValue(location, out var count) ? count : 0;
 
     /// <summary>
@@ -73,6 +75,9 @@ public class Traveller
             TotalStepsTaken += 1;
             Location += dir;
 
+            // always store locations for visualization
+            VisitedLocationsForVisOnly[Location] = VisitedLocationsForVisOnly.TryGetValue(Location, out var vis4vis) ? vis4vis + 1 : 1;
+            
             if (StoreVisitedLocations)
                 VisitedLocations[Location] = VisitedLocations.TryGetValue(Location, out var visited) ? visited + 1 : 1;
 
